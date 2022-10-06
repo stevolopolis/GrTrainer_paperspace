@@ -42,7 +42,7 @@ def get_cls_acc(model):
 
 def get_grasp_acc(model):
     """Returns the test accuracy and loss of a Grasp model."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT, 'data/top_5/test')
+    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
 
     loss = 0
     correct = 0
