@@ -278,7 +278,10 @@ class DataLoader:
 # Geometric augmentations for Grasp data
 # ----------------------------------------------------------------
 def crop_jitter_resize(img, ratio, jitter_x, jitter_y):
-    """Returns an augmented image after crop-jitter-resizing."""
+    """
+    Returns an augmented image after crop-jitter-resizing.
+    Not used in current training pipeline.
+    """
     # img.shape = (1, 3, img_h, img_w)
     img_h = img.shape[2]
     img_w = img.shape[3]
@@ -300,6 +303,7 @@ def crop_jitter_resize(img, ratio, jitter_x, jitter_y):
 # --------------------------------
 def depth_to_cls_map(img_d, label):
     """Return cls map with depth image and given cls image."""
+    # Manual degradient for true_depth images.
     for row_idx in range(len(img_d)):
         if row_idx >= 80:
             img_d[row_idx] += 0.000691 * 79 - 0.0000005 * ((row_idx/2)**2) + 0.000649 * (row_idx - 79)
