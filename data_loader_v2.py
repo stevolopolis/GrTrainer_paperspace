@@ -170,20 +170,9 @@ class DataLoader:
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d)
 
-            # Manual augmentaion random parameters
-            ratio = random.uniform(0.75, 0.85)
-            jitter_x = random.uniform(0.075, 0.075)
-            jitter_y = random.uniform(-0.075, 0.075)
-            
-            # Augmentation on image -- random resized crops with jitters
-            #img_rgbd = crop_jitter_resize(img_rgbd, ratio, jitter_x, jitter_y)
+            # Augmentation on image -- random rotations (can only do 1/2 pi rotations for label accuracy)
             if img_angle != 0:
-                # Augmentation on image -- random rotations (can only do 1/2 pi rotations for label accuracy)
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-            # Augmentation on grasp map -- random resized crop with jitters
-            #grasp_map = crop_jitter_resize(grasp_map, ratio, jitter_x, jitter_y)
-            # Augmentation on grasp map -- random rotations (can only do 1/2 pi rotations for label accuracy)
-            #grasp_map = transforms.functional.rotate(grasp_map, degree)
             
             yield (img_rgbd, grasp_map)
         
@@ -239,6 +228,8 @@ class DataLoader:
         """
         Returns a dictionary mapping the image ids from the 'data' 
         folder to their corresponding classes.
+
+        '/' may have to be changed to '\\' for linux system.
         """
         img_id_dict = {}
         for img_path in glob.iglob('%s/*/*/*' % self.path):
