@@ -1,3 +1,8 @@
 *.pth
 *.obj
 *__pycache__/
+*.npy
+*_mask.png
+*_grasps.txt
+*.tiff
+*_RGB.png
