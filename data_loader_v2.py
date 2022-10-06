@@ -123,19 +123,6 @@ class DataLoader:
 
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d)
-            """if img_angle != 0:
-                # Augmentation on image -- random rotations (can only do 1/2 pi rotations for label accuracy)
-                img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-                cls_map = transforms.functional.rotate(cls_map, img_angle)
-                
-                img_vis = torch.where(cls_map[0, :, :, 5] == 1.0, 255, 0)
-                img_vis = torch.unsqueeze(img_vis, 2)
-                img_vis = torch.cat((img_vis, img_vis, img_vis), 2)
-                img_vis = img_vis.detach().cpu().numpy()
-                img_vis = np.ascontiguousarray(img_vis, dtype=np.uint8)
-                
-                cv2.imshow('cls_map', img_vis)
-                cv2.waitKey(0)"""
 
             yield (img_rgbd, cls_map, img_cls_idx)
 
