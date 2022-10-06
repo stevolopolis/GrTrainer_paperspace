@@ -1,0 +1,3 @@
+*.pth
+*.obj
+*__pycache__/
