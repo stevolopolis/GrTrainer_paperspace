@@ -3,8 +3,8 @@ This file contains the DataLoader class which is responsible for
 loading both CLS data and Grasping data.
 
 DataLoader also includes all the necessary function for data augmentation
-such as a color and noise augmentation pipeline for CLS and a
-rotation+translation pipeline for Grasping.
+such as a color and noise augmentation pipeline for CLS and
+rotation for Grasping.
 
 """
 import glob
@@ -63,11 +63,6 @@ class DataLoader:
         # Custom data augmentations
         # Add gaussian noise with 25% probability
         random_transforms = transforms.RandomApply(nn.ModuleList([AddGaussianNoise(0, .02)]), p=0.25)
-        # Geometric data augmentations
-        self.transformation = transforms.Compose([
-            transforms.RandomResizedCrop(params.OUTPUT_SIZE, scale=(.75, .85), ratio=(1, 1)),
-            transforms.RandomRotation(90)
-        ])
         # Color data augmentations
         self.transformation_rgb = transforms.Compose([
             transforms.ColorJitter(),
