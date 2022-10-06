@@ -1,7 +1,7 @@
 """
-This file contains three variants of our Alexnet class,
+This file contains variants of our AlexnetGrasp model,
 each with slightly modified architectures or weight initialization.
-The current best model is trained using the class: 'PretrainedAlexnet'.
+The current best model is trained using the class: 'AlexnetMap_v5'.
 
 Alexnet:
     - Conventional Alexnet architecture with reduced no. of channels
@@ -12,8 +12,12 @@ PretrainedAlexnet:
     - Exact copy of Alexnet architecture with reduced fc layer
       (removed dropout layer proven to have better performance)
     - First two layers loaded with Imagenet pretraining weights
-
-
+AlexnetMap:
+    - Alexnet first two layers pretrained and frozen
+    - Pseudo alexnet architecture for the rest of encoder
+    - Decoder uses deconv with parameters mirroring encoder
+    - Outputs a map with same dimension as input, with each pixel
+            containing 6 values
 """
 
 import torch
@@ -662,10 +666,7 @@ class AlexnetMap_v5(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.grasp = nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1)
-        """self.grasp = nn.Sequential(
-            nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1),
-            nn.Sigmoid()
-        )"""
+
         self.confidence = nn.Sequential(
             nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
             nn.Sigmoid()
@@ -698,6 +699,7 @@ class AlexnetMap_v5(nn.Module):
         return out
 
     # Unfreeze pretrained layers (1st & 2nd CNN layer)
+    # Mistake: didn't unfree d_features
     def unfreeze_depth_backbone(self):
         for param in self.rgb_features.parameters():
             param.requires_grad = True
