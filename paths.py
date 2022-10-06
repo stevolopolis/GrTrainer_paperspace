@@ -1,7 +1,7 @@
 """
 This file contains the Path class that creates, deletes, or
-modifies paths. Concerned paths may related for saving
-traine models or saving images.
+modifies paths. Paths augmented may be related to saving
+trained models or saving images.
 
 This file is Copyright (c) 2022 Steven Tin Sui Luo.
 """
@@ -13,8 +13,9 @@ from parameters import Params
 params = Params()
 
 class Path:
-    """This class prepares the directories for saving AM results
-    in the <vis> folder.
+    """This class prepares the directories for saving models
+    and training logs depending on the path names specified in
+    the Params() class.
     """
     def __init__(self):
         self.model_path = params.MODEL_PATH
