@@ -1,3 +1,11 @@
+"""
+This file contains functions and code used to revert the 
+preprocessing pipeline. This is mainly used to visualize the
+dataset after running through DataPreProcessor to make sure
+any transformations made does not alter the dataset content
+in an unintended way.
+"""
+
 import torch
 import random
 import cv2
