@@ -145,7 +145,7 @@ class DataLoader:
             yield (img_batch, grasp_map_batch)
 
     def load_grasp(self):
-        """Yields a single instance of Grasp training data -- (img, grasp-label, grasp-candidates)."""
+        """Yields a single instance of Grasp training data -- (img, grasp-map)."""
         for img_id_with_var in self.img_id_list:
             img_angle = int(img_id_with_var.split('_')[-1])
             img_id = img_id_with_var.split('_')[-2]
@@ -175,6 +175,39 @@ class DataLoader:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
             
             yield (img_rgbd, grasp_map)
+
+    def load_grasp_old(self):
+        """
+        Yields a single instance of Grasp training data -- (img, grasp-candidates-list).
+        Takes data from original dataset.
+        """
+        for img_id_with_var in self.img_id_list:
+            img_id = img_id_with_var.split('_')[-2]
+            img_var = img_id_with_var.split('_')[0]
+            img_name = img_var + '_' + img_id
+            img_cls = self.img_id_map[img_id_with_var]
+
+            img_path = os.path.join(self.path, img_cls, img_id)
+            old_img_path = os.path.join('data/top_5/test', img_cls, img_id)
+
+            # Open RGB image with PIL
+            img_rgb = np.load(open(os.path.join(img_path, img_name + '_RGB.npy'), 'rb'))
+            img_rgb = torch.tensor(img_rgb, dtype=torch.float32).to(params.DEVICE)
+            # Open Depth image with PIL
+            img_d = np.load(open(os.path.join(img_path, img_name + '_perfect_depth.npy'), 'rb'))
+            img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
+
+            # Get Grasp label candidates and training label from '_grasps.txt' file
+            grasp_file_path = os.path.join(old_img_path, img_name + '_grasps.txt')
+            # List of Grasp candidates
+            grasp_list = self.load_grasp_label(grasp_file_path)
+            grasp_list = np.array(grasp_list)
+            
+            # Normalize and combine rgb with depth channel
+            img_rgbd = self.process(img_rgb, img_d)
+            
+            yield (img_rgbd,
+                   torch.tensor(grasp_list, dtype=torch.float32).to(params.DEVICE))
         
     def process(self, rgb, d):
         """
@@ -223,6 +256,21 @@ class DataLoader:
         grasp_map = torch.moveaxis(grasp_map, -1, 1)
 
         return grasp_map
+
+    def load_grasp_label(self, file_path):
+        """Returns a list of grasp labels from <file_path>."""
+        grasp_list = []
+        with open(file_path, 'r') as f:
+            file = f.readlines()
+            # dat format in each line: 'x;y;theta;w;h'
+            for grasp in file:
+                # remove '\n' from string
+                grasp = grasp[:-1]
+                label = grasp.split(';')
+                label = self.noramlize_grasp_old(label)
+                grasp_list.append(label)
+
+        return grasp_list
 
     def scan_img_id(self):
         """
