@@ -256,6 +256,25 @@ class DataLoader:
         grasp_map = torch.moveaxis(grasp_map, -1, 1)
 
         return grasp_map
+        
+    def noramlize_grasp_old(self, label):
+        """Returns normalize grasping labels (old datset)."""
+        norm_label = []
+        for i, value in enumerate(label):
+            if i == 4:
+                # Height
+                norm_label.append(float(value) / 100)
+            elif i == 2:
+                # Theta
+                norm_label.append((float(value) + 90) / 180)
+            elif i == 3:
+                # Width
+                norm_label.append(float(value) / 1024)
+            else:
+                # Coordinates
+                norm_label.append(float(value) / 1024)
+
+        return norm_label
 
     def load_grasp_label(self, file_path):
         """Returns a list of grasp labels from <file_path>."""
@@ -277,16 +296,16 @@ class DataLoader:
         Returns a dictionary mapping the image ids from the 'data' 
         folder to their corresponding classes.
 
-        '/' may have to be changed to '\\' for linux system.
+        '/' (linux) may have to be changed to '\\' (windows).
         """
         img_id_dict = {}
         for img_path in glob.iglob('%s/*/*/*' % self.path):
             if not img_path.endswith('grasps.npy'):
                 continue
             
-            img_cls = img_path.split('/')[-3]
+            img_cls = img_path.split('\\')[-3]
             # E.g. '<img_idx>_<img_id>_<angle>_<img_type>.png'
-            img_name = img_path.split('/')[-1]
+            img_name = img_path.split('\\')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_angle = img_name.split('_')[-2]
