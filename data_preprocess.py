@@ -1,24 +1,20 @@
 """
-This file contains the DataLoader class which is responsible for
-loading both CLS data and Grasping data.
-
-DataLoader also includes all the necessary function for data augmentation
-such as a color and noise augmentation pipeline for CLS and a
-rotation+translation pipeline for Grasping.
-
+This file contains the DataPreProcessor class that converts
+the original Jacquard dataset to .npy files and its labels
+to maps. This is done to create a more efficient training
+pipeline.
 """
+
 import glob
 import torch
 import os
 import random
 import math
-import torch.nn as nn
 import numpy as np
 
 from PIL import Image
 from torchvision import transforms
 from parameters import Params
-from utils import AddGaussianNoise
 
 from tqdm import tqdm
 
@@ -94,18 +90,11 @@ def point_in_bbox(pt, bbox):
 
 class DataPreProcessor:
     """
-    DataLoader class. Loads both CLS data and Grasping data.
-
-    CLS data:
-        - self.load_batch() and self.load()
-    Grasp data:
-        - self.load_grasp_batch() and self.load_grasp()
-    Image processing:
-        - self.process()
-    CLS labels:
-        - self.scan_img_id() and self.get_cls_id()
-    Grasp labels:
-        - self.load_grasp_label() and self.get_grasp_label()
+    This class has two main functions:
+        - convert data (images/labels) to .npy files
+        - convert grasp candidate labels to grasp maps
+    Other helper functions in this class are taken from the 
+    DataLoader class in data_loader_v2.py.
     """
     def __init__(self, path, batch_size, train_val_split=0.2):
         self.path = path
