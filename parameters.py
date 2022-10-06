@@ -14,6 +14,9 @@ class Params:
     """
     def __init__(self):
         # Model name -- '<type>_<raw/pretrained>_<input>_<version>'
+        # CLS name format
+        #self.MODEL_NAME = 'alexnetGrasp_cls_top5_v100'
+        # Grasp name format
         self.MODEL_NAME = 'alexnetGrasp_grasp_top5_v110'
 
         # device: cpu / gpu
@@ -37,6 +40,3 @@ class Params:
         self.MODEL_PATH = 'trained-models'
         self.MODEL_LOG_PATH = 'trained-models/%s' % self.MODEL_NAME
         self.LOG_PATH = 'logs'
-
-
-        paperspace_pwd = '6GbkvDy884NG'
