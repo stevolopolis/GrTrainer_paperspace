@@ -4,7 +4,7 @@ Available models for training include:
 - CLS model (with/without imagenet pretraining)
 |   - grconvnet
 |   - alexnet
-- Grasp model (with/withou imagenet pretraining)
+- Grasp model (with/without imagenet pretraining)
 |   - alexnet
 
 Comment or uncomment certain lines of code for swapping between
@@ -106,7 +106,7 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
             train_history.append(loss.item())
             # Correct prediction stats for CLS training
             #correct, total = get_correct_cls_preds_from_map(output, label)
-            # Correct prediction stats for Grasp traning
+            # Correct prediction stats for Grasp traning (use after training to reduce training time)
             #correct, total = get_correct_grasp_preds_from_map(output, grasp_map)
             # Dummie prediction stats
             correct, total = 0, 1
@@ -117,7 +117,7 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
             val_history.append(loss.item())
             # Correct prediction stats for CLS training
             #correct, total = get_correct_cls_preds_from_map(output, label)
-            # Correct prediction stats for Grasp traning
+            # Correct prediction stats for Grasp traning (use after training to reduce training time)
             #correct, total = get_correct_grasp_preds_from_map(output, grasp_map)
             # Dummie prediction stats
             correct, total = 0, 1
