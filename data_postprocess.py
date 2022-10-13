@@ -152,31 +152,34 @@ def load_grasp_label(file_path):
                 # remove '\n' from string
                 grasp = grasp[:-1]
                 label = grasp.split(';')
-                label = noramlize_grasp(label)
+                label = normalize_grasp(label)
                 grasp_list.append(label)
 
         return grasp_list
 
 
-def noramlize_grasp(label):
-        """Returns normalize grasping labels."""
-        norm_label = []
-        for i, value in enumerate(label):
-            if i == 4:
-                # Height
-                norm_label.append(float(value) / 100)
-            elif i == 2:
-                # Theta
-                norm_label.append((float(value) + 90) / 180)
-            elif i == 3:
-                # Width
-                norm_label.append(float(value) / 1024)
-            else:
-                # Coordinates
-                norm_label.append(float(value) / 1024)
+def normalize_grasp(label):
+    """Returns normalize grasping labels."""
+    norm_label = []
+    for i, value in enumerate(label):
+        if i == 4:
+            # Height
+            norm_label.append(float(value) / 100)
+        elif i == 2:
+            # Theta
+            norm_label.append((float(value) + 90) / 180)
+        elif i == 3:
+            # Width
+            norm_label.append(float(value) / 1024)
+        else:
+            # Coordinates
+            norm_label.append(float(value) / 1024)
 
-        return norm_label
+    return norm_label
 
+def npy_grasp_normalize(labels):
+    for idx in [0, 1, 3]:
+        labels[:, idx] /= 224
 
 if __name__ == '__main__':
     path = 'data/top_5_compressed/train'
@@ -184,23 +187,33 @@ if __name__ == '__main__':
     processor = DataPostProcessor()
     for cls in os.listdir(path):
         for img_id in os.listdir(os.path.join(path, cls)):
-            for img_id_with_var in os.listdir(os.path.join(path, cls, img_id)): 
+            for img_id_with_var in os.listdir(os.path.join(path, cls, img_id))[10:]: 
                 if not img_id_with_var.endswith('RGB.npy'):
                     continue
                 
                 var = img_id_with_var[:2]
                 rgb_name = var + img_id + '_RGB.npy'
                 d_name = var + img_id + '_perfect_depth.npy'
-                map_name = var + img_id + '_grasps.npy'
+                mask_name = var + img_id + '_mask.npy'
+                map_name = var + img_id + '_0_map_grasps.npy'
+                grasp_list_name = var + img_id + '_0_txt_grasps.npy'
 
                 rgb = np.load(open(os.path.join(path, cls, img_id, rgb_name), 'rb'))
                 d = np.load(open(os.path.join(path, cls, img_id, d_name), 'rb'))
+                mask = np.load(open(os.path.join(path, cls, img_id, mask_name), 'rb'))
                 map = np.load(open(os.path.join(path, cls, img_id, map_name), 'rb'))
 
-                true_grasps = load_grasp_label(os.path.join(ori_path, cls, img_id, var + img_id + '_grasps.txt'))
+                mask = torch.unsqueeze(torch.unsqueeze(torch.tensor(mask), 0), 0)
+                rotated_mask = transforms.functional.rotate(torch.tensor(mask), 90)
+
+                true_grasps = np.load(open(os.path.join(path, cls, img_id, grasp_list_name), 'rb'))
                 true_grasps = torch.tensor(true_grasps)
+                npy_grasp_normalize(true_grasps)
+                print(true_grasps)
 
                 input_img = process(torch.tensor(rgb), torch.tensor(d))
+                print(rotated_mask.shape)
+                input_img = input_img * rotated_mask.to('cuda')
 
                 grasps = processor.map2grasp(map)
                 processor.visualize_grasp(input_img, grasps)

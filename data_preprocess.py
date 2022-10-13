@@ -20,13 +20,41 @@ from tqdm import tqdm
 
 params = Params()
 
-class MyRotationTransform:
-    """Rotate by one of the given angles."""
-    def __init__(self, angle):
-        self.angles = angle
 
-    def __call__(self, x):
-        return transforms.functional.rotate(x, self.angle)
+def rotate_grasp_label(grasp_list, degrees):
+    """Returns rotated list of Grasp labels given the degrees."""
+    # grasp_list.shape == (n, 5)
+    # x, y, theta, w, h
+    new_grasp_list =[]
+    for grasp in grasp_list:
+        x = grasp[0] / params.OUTPUT_SIZE * 1024
+        y = grasp[1] / params.OUTPUT_SIZE * 1024
+
+        angle = np.deg2rad(-degrees)
+        R = np.array([[np.cos(angle), -np.sin(angle)],
+                    [np.sin(angle),  np.cos(angle)]])
+        o = np.atleast_2d((1024 // 2, 1024 // 2))
+        p = np.atleast_2d((x, y))
+        
+        coords = np.squeeze((R @ (p.T-o.T) + o.T).T)
+        if degrees == 0 or degrees == 180:
+            theta = grasp[2] * 180 - 90
+        elif degrees == 90 or degrees == 270:
+            if grasp[2] <= 0.5 :
+                theta = grasp[2] * 180
+            elif grasp[2] > 0.5:
+                theta = grasp[2] * 180 - 180
+        
+        w = grasp[3]
+        h = grasp[4]
+
+        new_grasp_list.append([coords[0] / 1024 * params.OUTPUT_SIZE,
+                               coords[1] / 1024 * params.OUTPUT_SIZE,
+                               (theta + 90) / 180,
+                               w,
+                               h])
+
+    return np.array(new_grasp_list)
 
 
 def grasps_to_bboxes(grasps):
@@ -96,12 +124,10 @@ class DataPreProcessor:
     Other helper functions in this class are taken from the 
     DataLoader class in data_loader_v2.py.
     """
-    def __init__(self, path, batch_size, train_val_split=0.2):
+    def __init__(self, path):
         self.path = path
         self.subdir = path.split('/')[-1]
         self.save_path = os.path.join(params.DATA_PATH, 'top_5_compressed', self.subdir)
-        self.batch_size = batch_size
-        self.train_val_split = train_val_split
 
         # Create compressed subdirectory
         if 'top_5_compressed' not in os.listdir(params.DATA_PATH):
@@ -139,6 +165,10 @@ class DataPreProcessor:
         img_d = Image.open(os.path.join(img_path, img_id_with_var + '_perfect_depth.tiff'))
         img_d = img_d.resize((params.OUTPUT_SIZE, params.OUTPUT_SIZE))
         img_d = np.array(img_d)
+        # Convert Mask image to .npy
+        img_mask = Image.open(os.path.join(img_path, img_id_with_var + '_mask.png'))
+        img_mask = img_mask.resize((params.OUTPUT_SIZE, params.OUTPUT_SIZE))
+        img_mask = np.array(img_mask)
 
         # Create compressed subdirectory
         if img_cls not in os.listdir(self.save_path):
@@ -151,20 +181,32 @@ class DataPreProcessor:
         new_rgb_path = os.path.join(self.save_path, img_cls, img_id, rgb_name)
         d_name = img_id_with_var + '_perfect_depth.npy'
         new_d_path = os.path.join(self.save_path, img_cls, img_id, d_name)
+        mask_name = img_id_with_var + '_mask.npy'
+        new_mask_path = os.path.join(self.save_path, img_cls, img_id, mask_name)
         np.save(open(new_rgb_path, 'wb'), img_rgb)
         np.save(open(new_d_path, 'wb'), img_d)
+        np.save(open(new_mask_path, 'wb'), img_mask)
 
     def label2npy(self, img_path, img_id, img_id_with_var, img_cls):
-        """Saves labels as .npy files after converting grasps/classifications into maps."""
+        """Saves labels as .npy files after converting grasps into maps."""
         # Get Grasp label candidates and training label from '_grasps.txt' file
         grasp_file_path = os.path.join(img_path, img_id_with_var + '_grasps.txt')
         # List of Grasp candidates
         grasp_list = self.load_grasp_label(grasp_file_path)
-        grasp_map = self.grasp2map(grasp_list)
+        for degree in [0, 90, 180, 270]:
+            # Augmentation on labels -- random rotations
+            if degree != 0:
+                rotated_grasp_list = rotate_grasp_label(np.array(grasp_list), degree)
+            else:
+                rotated_grasp_list = grasp_list
+            rotated_grasp_map = self.grasp2map(rotated_grasp_list)
         
-        label_name = img_id_with_var + '_grasps.npy'
-        label_path = os.path.join(self.save_path, img_cls, img_id, label_name)
-        np.save(open(label_path, 'wb'), grasp_map)
+            label_map_name = img_id_with_var + '_%s_map_grasps.npy' % degree
+            label_map_path = os.path.join(self.save_path, img_cls, img_id, label_map_name)
+            label_txt_name = img_id_with_var + '_%s_txt_grasps.npy' % degree
+            label_txt_path = os.path.join(self.save_path, img_cls, img_id, label_txt_name)
+            np.save(open(label_map_path, 'wb'), rotated_grasp_map)
+            np.save(open(label_txt_path, 'wb'), rotated_grasp_list)
 
     def grasp2map(self, grasp_list):
         """
@@ -274,18 +316,14 @@ class DataPreProcessor:
             if not img_path.endswith('RGB.png'):
                 continue
             
-            img_cls = img_path.split('\\')[-3]
+            img_cls = img_path.split('/')[-3]
             # E.g. '<img_idx>_<img_id>_<img_type>.png'
-            img_name = img_path.split('\\')[-1]
+            img_name = img_path.split('/')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_id_with_var = img_var + '_' + img_id
             img_id_dict[img_id_with_var] = img_cls
 
-        n_data = len(img_id_dict.keys())
-        n_train, n_val = self.get_train_val(n_data)
-        print('Dataset size: %s' % n_data)
-        print('Training steps: %s -- Val steps: %s' % (n_train, n_val))
         return img_id_dict
 
     def get_cls_id(self):
@@ -300,17 +338,7 @@ class DataPreProcessor:
 
         return cls_list
 
-    def get_train_val(self, n_data=None):
-        """Returns the number of training/validation steps."""
-        if n_data is not None:
-            n_steps = math.ceil(n_data / self.batch_size)
-        else:
-            n_steps = math.ceil(self.n_data / self.batch_size)
-        n_val = round(n_steps * self.train_val_split)
-        n_train = n_steps - n_val
-        return n_train, n_val
-
 
 if __name__ == '__main__':
-    data_processor = DataPreProcessor(params.TEST_PATH, params.BATCH_SIZE, params.TRAIN_VAL_SPLIT)
+    data_processor = DataPreProcessor('data/top_5/test')
     data_processor.data2npy()
