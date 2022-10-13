@@ -31,7 +31,10 @@ class AlexnetMap(nn.Module):
             nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(inplace=True)
         )
-        self.grasp = nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1)
+        self.grasp = nn.Sequential(
+            nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1),
+            nn.Tanh()
+        )
 
         self.confidence = nn.Sequential(
             nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
