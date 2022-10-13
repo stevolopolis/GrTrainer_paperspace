@@ -22,9 +22,9 @@ from grasp_utils import get_correct_grasp_preds, grasps_to_bboxes, box_iou, map2
 
 params = Params()
 
-def get_cls_acc(model):
+def get_cls_acc(model, dataset=params.TEST_PATH):
     """Returns the test accuracy and loss of a CLS model."""
-    data_loader = DataLoader(params.TEST_PATH, 2, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(dataset, 2, params.TRAIN_VAL_SPLIT, verbose=False)
 
     loss = 0
     correct = 0
