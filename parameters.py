@@ -15,9 +15,9 @@ class Params:
     def __init__(self):
         # Model name -- '<type>_<raw/pretrained>_<input>_<version>'
         # CLS name format
-        #self.MODEL_NAME = 'alexnetGrasp_cls_top5_v100'
+        self.MODEL_NAME = 'alexnetMap_cls_top5_v1'
         # Grasp name format
-        self.MODEL_NAME = 'alexnetGrasp_grasp_top5_v110'
+        #self.MODEL_NAME = 'alexnetMap_grasp_top5_v1'
 
         # device: cpu / gpu
         self.DEVICE = torch.device('cuda') if torch.cuda.is_available() \

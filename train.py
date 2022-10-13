@@ -54,7 +54,7 @@ paths.create_log_path()
 paths.create_model_log_path()
 
 # Load model
-model = models.AlexnetMap_v5(n_cls=params.NUM_CLASS).to(params.DEVICE)
+model = models.AlexnetMap(n_cls=params.NUM_CLASS).to(params.DEVICE)
 
 # Load checkpoint weights
 checkpoint_name = 'alexnetGrasp_depthconcat_convtrans_top5_v4.3'
