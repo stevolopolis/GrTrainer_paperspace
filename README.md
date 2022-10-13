@@ -49,3 +49,5 @@ data
 ```trained-models``` - Saves trained models (checkpoints + final model)
 
 ```vis``` - Saves network output visualizations.
+
+This work is under the MIT Liscence
