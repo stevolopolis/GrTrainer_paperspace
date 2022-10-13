@@ -46,7 +46,7 @@ class DataLoader:
     Grasp labels:
         - self.load_grasp_label() and self.get_grasp_label()
     """
-    def __init__(self, path, batch_size, train_val_split=0.2):
+    def __init__(self, path, batch_size, train_val_split=0.2, verbose=True):
         self.path = path
         self.batch_size = batch_size
         self.train_val_split = train_val_split
@@ -54,7 +54,7 @@ class DataLoader:
         # Get list of class names
         self.img_cls_list = self.get_cls_id()
         # Get dictionary of image-id to classes
-        self.img_id_map = self.scan_img_id()
+        self.img_id_map = self.scan_img_id(verbose=verbose)
         self.n_data = len(self.img_id_map.keys())
         self.img_id_list = list(self.img_id_map.keys())
         # Shuffle ids for training
@@ -105,24 +105,31 @@ class DataLoader:
             img_cls_idx = self.img_cls_list.index(img_cls)
             img_cls_idx = torch.tensor([img_cls_idx]).to(params.DEVICE)
 
-            label = torch.zeros(6, dtype=torch.float32)
+            label = torch.ones(6, dtype=torch.float32) * -1
             label[img_cls_idx] = 1.0
             label[5] = 1.0
 
             img_path = os.path.join(self.path, img_cls, img_id)
 
-            # Open RGB image with PIL
+            # Open RGB npy file
             img_rgb = np.load(open(os.path.join(img_path, img_name + '_RGB.npy'), 'rb'))
             img_rgb = torch.tensor(img_rgb, dtype=torch.float32).to(params.DEVICE)
-            # Open Depth image with PIL
+            # Open Depth npy file
             img_d = np.load(open(os.path.join(img_path, img_name + '_perfect_depth.npy'), 'rb'))
             img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
+            # Open Mask npy file
+            img_mask = np.load(open(os.path.join(img_path, img_name + '_mask.npy'), 'rb'))
+            img_mask = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
 
-            cls_map = depth_to_cls_map(img_d, label)
+            cls_map = mask_to_cls_map(img_mask, label)
             cls_map = torch.unsqueeze(cls_map, 0).to(params.DEVICE)
 
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d)
+
+            if img_angle != 0:
+                img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
+                img_mask = transforms.functional.rotate(cls_map, img_angle)
 
             yield (img_rgbd, cls_map, img_cls_idx)
 
@@ -163,9 +170,9 @@ class DataLoader:
             img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
 
             # Get Grasp map
-            grasp_map = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_grasps.npy'), 'rb'))
+            grasp_map = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_map_grasps.npy'), 'rb'))
             grasp_map = torch.tensor(grasp_map).to(params.DEVICE)
-            grasp_map = self.noramlize_grasp(grasp_map)
+            grasp_map = self.noramlize_grasp_map(grasp_map)
             
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d)
@@ -182,13 +189,13 @@ class DataLoader:
         Takes data from original dataset.
         """
         for img_id_with_var in self.img_id_list:
+            img_angle = int(img_id_with_var.split('_')[-1])
             img_id = img_id_with_var.split('_')[-2]
             img_var = img_id_with_var.split('_')[0]
             img_name = img_var + '_' + img_id
             img_cls = self.img_id_map[img_id_with_var]
 
             img_path = os.path.join(self.path, img_cls, img_id)
-            old_img_path = os.path.join('data/top_5/test', img_cls, img_id)
 
             # Open RGB image with PIL
             img_rgb = np.load(open(os.path.join(img_path, img_name + '_RGB.npy'), 'rb'))
@@ -198,9 +205,10 @@ class DataLoader:
             img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
 
             # Get Grasp label candidates and training label from '_grasps.txt' file
-            grasp_file_path = os.path.join(old_img_path, img_name + '_grasps.txt')
+            grasp_list = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_txt_grasps.npy'), 'rb'))
+            grasp_list = torch.tensor(grasp_list).to(params.DEVICE)
+            grasp_list = self.noramlize_grasp_arr(grasp_list)
             # List of Grasp candidates
-            grasp_list = self.load_grasp_label(grasp_file_path)
             grasp_list = np.array(grasp_list)
             
             # Normalize and combine rgb with depth channel
@@ -243,38 +251,30 @@ class DataLoader:
 
         return img
 
-    def noramlize_grasp(self, grasp_map):
+    def noramlize_grasp_map(self, grasp_map):
         """Returns normalize grasping labels."""
         # Normalize x-coord
-        grasp_map[:, :, 0] /= params.OUTPUT_SIZE
+        grasp_map[:, :, 0] /= 224
         # Normalize y-coord
-        grasp_map[:, :, 1] /= params.OUTPUT_SIZE
+        grasp_map[:, :, 1] /= 224
         # Normalize width
-        grasp_map[:, :, 3] /= params.OUTPUT_SIZE
+        grasp_map[:, :, 3] /= 224
         # Reshape to match input dim
         grasp_map = torch.unsqueeze(grasp_map, 0)
         grasp_map = torch.moveaxis(grasp_map, -1, 1)
 
         return grasp_map
         
-    def noramlize_grasp_old(self, label):
-        """Returns normalize grasping labels (old datset)."""
-        norm_label = []
-        for i, value in enumerate(label):
-            if i == 4:
-                # Height
-                norm_label.append(float(value) / 100)
-            elif i == 2:
-                # Theta
-                norm_label.append((float(value) + 90) / 180)
-            elif i == 3:
-                # Width
-                norm_label.append(float(value) / 1024)
-            else:
-                # Coordinates
-                norm_label.append(float(value) / 1024)
+    def noramlize_grasp_arr(self, label):
+        """Returns normalize grasping labels."""
+        # Normalize x-coord
+        label[:, :, 0] /= 224
+        # Normalize y-coord
+        label[:, :, 1] /= 224
+        # Normalize width
+        label[:, :, 3] /= 224
 
-        return norm_label
+        return label
 
     def load_grasp_label(self, file_path):
         """Returns a list of grasp labels from <file_path>."""
@@ -291,7 +291,7 @@ class DataLoader:
 
         return grasp_list
 
-    def scan_img_id(self):
+    def scan_img_id(self, verbose=True):
         """
         Returns a dictionary mapping the image ids from the 'data' 
         folder to their corresponding classes.
@@ -300,22 +300,23 @@ class DataLoader:
         """
         img_id_dict = {}
         for img_path in glob.iglob('%s/*/*/*' % self.path):
-            if not img_path.endswith('grasps.npy'):
+            if not img_path.endswith('map_grasps.npy'):
                 continue
             
-            img_cls = img_path.split('\\')[-3]
+            img_cls = img_path.split('/')[-3]
             # E.g. '<img_idx>_<img_id>_<angle>_<img_type>.png'
-            img_name = img_path.split('\\')[-1]
+            img_name = img_path.split('/')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
-            img_angle = img_name.split('_')[-2]
+            img_angle = img_name.split('_')[-3]
             img_id_with_var = img_var + '_' + img_id + '_' + img_angle
             img_id_dict[img_id_with_var] = img_cls
 
         n_data = len(img_id_dict.keys())
         n_train, n_val = self.get_train_val(n_data)
-        print('Dataset size: %s' % n_data)
-        print('Training steps: %s -- Val steps: %s' % (n_train, n_val))
+        if verbose:
+            print('Dataset size: %s' % n_data)
+            print('Training steps: %s -- Val steps: %s' % (n_train, n_val))
         return img_id_dict
 
     def get_cls_id(self):
@@ -368,23 +369,14 @@ def crop_jitter_resize(img, ratio, jitter_x, jitter_y):
 
 
 # --------------------------------
-def depth_to_cls_map(img_d, label):
-    """Return cls map with depth image and given cls image."""
-    # Manual degradient for true_depth images.
-    for row_idx in range(len(img_d)):
-        if row_idx >= 80:
-            img_d[row_idx] += 0.000691 * 79 - 0.0000005 * ((row_idx/2)**2) + 0.000649 * (row_idx - 79)
-        else:
-            img_d[row_idx] += 0.00069 * row_idx - 0.0000005 * ((row_idx/2)**2)
-        
-    img_d = torch.where(torch.abs(img_d - 1.5740) <= 0.005, img_d[0][0], img_d)
-
-    depth_map = img_d.cpu()
-    depth_map = torch.unsqueeze(depth_map, 2)
-    depth_map = torch.cat((depth_map, depth_map, depth_map, depth_map, depth_map, depth_map), 2)
-    background_val = img_d[0][0].cpu()
-    background_mask = torch.zeros((params.OUTPUT_SIZE, params.OUTPUT_SIZE, 6))
-    cls_map = torch.where(depth_map == background_val, background_mask, label.cpu())
+def mask_to_cls_map(img_mask, label):
+    """Return cls map using mask image."""
+    img_mask = img_mask.cpu()
+    img_mask = torch.unsqueeze(img_mask, 2)
+    img_mask = torch.cat((img_mask, img_mask, img_mask, img_mask, img_mask, img_mask), 2)
+    background_val = img_mask[0][0]
+    background_mask = torch.ones((params.OUTPUT_SIZE, params.OUTPUT_SIZE, 6)) * -1
+    cls_map = torch.where(img_mask == background_val, background_mask, label.cpu())
     cls_map = torch.moveaxis(cls_map, -1, 0)
 
     return cls_map
