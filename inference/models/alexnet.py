@@ -38,7 +38,7 @@ class AlexnetMap(nn.Module):
 
         self.confidence = nn.Sequential(
             nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
-            nn.Sigmoid()
+            nn.Tanh()
         )
 
         for param in self.rgb_features.parameters():
