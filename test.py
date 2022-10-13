@@ -27,7 +27,7 @@ import torch
 import os
 
 from parameters import Params
-import inference.models.alexnet as models
+import inference.models.alexnet_old as models
 from evaluation import get_cls_acc, get_grasp_acc, visualize_grasp, visualize_cls
 
 params = Params()
