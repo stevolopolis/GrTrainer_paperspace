@@ -40,16 +40,16 @@ def get_cls_acc(model, dataset=params.TEST_PATH):
     return accuracy, round(loss / total, 3)
 
 
-def get_grasp_acc(model):
+def get_grasp_acc(model, dataset=params.TEST_PATH):
     """Returns the test accuracy and loss of a Grasp model."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(dataset, 1, params.TRAIN_VAL_SPLIT)
 
     loss = 0
     correct = 0
     total = 0
 
     pbar = tqdm(total=data_loader.n_data)
-    for (img, candidates) in data_loader.load_grasp_old():
+    for (img, map, candidates) in data_loader.load_grasp():
         output = model(img)
         # Move grasp channel to the end
         output = torch.moveaxis(output, 1, -1)
@@ -123,10 +123,10 @@ def visualize_cls(model):
 
 def visualize_grasp(model):
     """Visualize the model's grasp predictions on test images one by one."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader('data/top_5_compressed_v2/test', 1, params.TRAIN_VAL_SPLIT)
 
     #for (img, cls_map, label) in data_loader.load_cls():
-    for i, (img, grasp_map) in enumerate(data_loader.load_grasp()):
+    for i, (img, grasp_map, candidates) in enumerate(data_loader.load_grasp()):
         output = model(img)
         # Get confidence map
         conf_on_rgb = get_confidence_map(img, output)

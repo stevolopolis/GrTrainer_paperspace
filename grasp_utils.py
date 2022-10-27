@@ -90,7 +90,6 @@ def get_correct_grasp_preds(output, target):
     correct = 0
     for i in range(len(target)):
         bbox_target = grasps_to_bboxes(target[i])
-        #print(output[i], target[i])
         for j in range(len(bbox_target)):
             iou = box_iou(bbox_output[i], bbox_target[j])
             pre_theta = output[i][2] * 180 - 90
