@@ -1,14 +1,31 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from grasp_model import GraspModel, ResidualBlock
+
+class ResidualBlock(nn.Module):
+    """
+    A residual block with dropout option
+    """
+
+    def __init__(self, in_channels, out_channels, kernel_size=3):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+        self.bn2 = nn.BatchNorm2d(in_channels)
+
+    def forward(self, x_in):
+        x = self.bn1(self.conv1(x_in))
+        x = F.relu(x)
+        x = self.bn2(self.conv2(x))
+        return x + x_in
 
 
-class GrConvMap(GraspModel):
-
-    def __init__(self, input_channels=1, dropout=False, prob=0.0, channel_size=32):
+class GrConvMap(nn.Module):
+    def __init__(self):
         super(GrConvMap, self).__init__()
-        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=9, stride=1, padding=4)
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=9, stride=1, padding=4)
         self.bn1 = nn.BatchNorm2d(32)
 
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1)
@@ -23,7 +40,7 @@ class GrConvMap(GraspModel):
         self.res4 = ResidualBlock(128, 128)
         self.res5 = ResidualBlock(128, 128)
 
-        self.conv4 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1, output_padding=1)
+        self.conv4 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1, output_padding=0)
         self.bn4 = nn.BatchNorm2d(64)
 
         self.conv5 = nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=2, output_padding=1)
@@ -31,12 +48,14 @@ class GrConvMap(GraspModel):
 
         self.conv6 = nn.ConvTranspose2d(32, 32, kernel_size=9, stride=1, padding=4)
 
-        self.map_output = nn.Conv2d(32, 1, kernel_size=2)
-        self.cos_output = nn.Conv2d(32, 1, kernel_size=2)
-        self.sin_output = nn.Conv2d(32, 1, kernel_size=2)
-        self.width_output = nn.Conv2d(32, 1, kernel_size=2)
-
-        self.dropout1 = nn.Dropout(p=prob)
+        self.grasp = nn.Sequential(
+            nn.ConvTranspose2d(32, 5, kernel_size=2),
+            nn.Tanh()
+        )
+        self.confidence = nn.Sequential(
+            nn.ConvTranspose2d(32, 1, kernel_size=2),
+            nn.Sigmoid()
+        )
 
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
@@ -55,6 +74,8 @@ class GrConvMap(GraspModel):
         x = F.relu(self.bn5(self.conv5(x)))
         x = self.conv6(x)
 
-        map_out = self.map_output(self.dropout1(x))
+        grasp = self.grasp(x)
+        confidence = self.confidence(x)
+        out = torch.cat((grasp, confidence), dim=1)
 
-        return map_out
+        return out
