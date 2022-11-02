@@ -34,6 +34,26 @@ cls_v5 (SUCCESS - 75.25% test acc)
 	- old logl1loss
 	- background label = [-1, -1, -1, -1, -1, 0.0]
 
+cls_v6 (SUCCESS - 78.25% test acc)
+	- unfreeze (epoch75)
+	- lr_scheduler (per 25 epoch)
+	- batchnorm2d only after encoder convs (before relu)
+	- res-block after encoder conv (x2)
+	- dropout after each encoder conv
+	- height reranged to [-1, 1]
+	- old logl1loss
+	- background label = [-1, -1, -1, -1, -1, 0.0]
+
+cls_v7 
+	- unfreeze (epoch75)
+	- lr_scheduler (per 25 epoch)
+	- batchnorm2d only after encoder convs (before relu)
+	- res-block after encoder conv (x2)
+	- dropout after each encoder conv AND res-block
+	- height reranged to [-1, 1]
+	- old logl1loss
+	- background label = [-1, -1, -1, -1, -1, 0.0]
+
 
 grasp_v2
 	- unfreeze (epoch50)
