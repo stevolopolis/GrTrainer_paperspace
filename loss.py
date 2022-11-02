@@ -36,7 +36,6 @@ def MapLoss(output, map):
 
 
 def logl1Loss(output, target):
-    
     left_loss = - (torch.log(1 + ((1/(1+target+1e-5))*(output-target))))
     right_loss = - (torch.log(1 + ((1/(1-target+1e-5))*(target-output))))
     nll = torch.where(output < target, left_loss, right_loss)

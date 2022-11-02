@@ -127,15 +127,16 @@ class DataPreProcessor:
     def __init__(self, path):
         self.path = path
         self.subdir = path.split('/')[-1]
-        self.save_path = os.path.join(params.DATA_PATH, 'top_5_compressed', self.subdir)
+        self.save_dir_name = 'top_5_compressed_scratch'
+        self.save_path = os.path.join(params.DATA_PATH, self.save_dir_name, self.subdir)
 
         # Create compressed subdirectory
-        if 'top_5_compressed' not in os.listdir(params.DATA_PATH):
-            os.makedirs(os.path.join(params.DATA_PATH, 'top_5_compressed'))
-        if 'train' not in os.listdir(os.path.join(params.DATA_PATH, 'top_5_compressed')):
-            os.makedirs(os.path.join(params.DATA_PATH, 'top_5_compressed', 'train'))
-        if 'test' not in os.listdir(os.path.join(params.DATA_PATH, 'top_5_compressed')):
-            os.makedirs(os.path.join(params.DATA_PATH, 'top_5_compressed', 'test'))
+        if self.save_dir_name not in os.listdir(params.DATA_PATH):
+            os.makedirs(os.path.join(params.DATA_PATH, self.save_dir_name))
+        if 'train' not in os.listdir(os.path.join(params.DATA_PATH, self.save_dir_name)):
+            os.makedirs(os.path.join(params.DATA_PATH, self.save_dir_name, 'train'))
+        if 'test' not in os.listdir(os.path.join(params.DATA_PATH, self.save_dir_name)):
+            os.makedirs(os.path.join(params.DATA_PATH, self.save_dir_name, 'test'))
 
         # Get list of class names
         self.img_cls_list = self.get_cls_id()
@@ -316,9 +317,9 @@ class DataPreProcessor:
             if not img_path.endswith('RGB.png'):
                 continue
             
-            img_cls = img_path.split('/')[-3]
+            img_cls = img_path.split('\\')[-3]
             # E.g. '<img_idx>_<img_id>_<img_type>.png'
-            img_name = img_path.split('/')[-1]
+            img_name = img_path.split('\\')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_id_with_var = img_var + '_' + img_id
