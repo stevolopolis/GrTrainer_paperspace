@@ -119,7 +119,7 @@ class DataLoader:
             img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
             # Open Mask npy file
             img_mask = np.load(open(os.path.join(img_path, img_name + '_mask.npy'), 'rb'))
-            img_mask = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
+            img_mask = torch.tensor(img_mask, dtype=torch.float32).to(params.DEVICE)
 
             cls_map = mask_to_cls_map(img_mask, label)
             cls_map = torch.unsqueeze(cls_map, 0).to(params.DEVICE)
@@ -129,7 +129,7 @@ class DataLoader:
 
             if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-                img_mask = transforms.functional.rotate(cls_map, img_angle)
+                cls_map = transforms.functional.rotate(cls_map, img_angle)
 
             yield (img_rgbd, cls_map, img_cls_idx)
 
@@ -232,6 +232,8 @@ class DataLoader:
         grasp_map[:, :, 1] /= 224
         # Normalize width
         grasp_map[:, :, 3] /= 244
+        # Normalize height (range: [-1, 1])
+        grasp_map[:, :, 4] = (grasp_map[:, :, 3] - 0.5) * 2
         # Reshape to match input dim
         grasp_map = torch.unsqueeze(grasp_map, 0)
         grasp_map = torch.moveaxis(grasp_map, -1, 1)
@@ -349,6 +351,7 @@ def mask_to_cls_map(img_mask, label):
     img_mask = torch.cat((img_mask, img_mask, img_mask, img_mask, img_mask, img_mask), 2)
     background_val = img_mask[0][0]
     background_mask = torch.ones((params.OUTPUT_SIZE, params.OUTPUT_SIZE, 6)) * -1
+    background_mask[:, :, 5] = 0.0
     cls_map = torch.where(img_mask == background_val, background_mask, label.cpu())
     cls_map = torch.moveaxis(cls_map, -1, 0)
 

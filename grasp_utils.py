@@ -20,7 +20,7 @@ def map2grasp(map):
             grasp_y = (i + map[i][j][1]) / params.OUTPUT_SIZE
             grasp_theta = map[i][j][2]
             grasp_w = map[i][j][3] / params.OUTPUT_SIZE
-            grasp_h = map[i][j][4]
+            grasp_h = map[i][j][4] / 2 + 0.5
             grasp = (grasp_x, grasp_y, grasp_theta, grasp_w, grasp_h)
             grasp_candidates.add(grasp)
 
