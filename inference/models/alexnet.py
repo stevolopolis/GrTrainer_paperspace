@@ -41,9 +41,12 @@ class AlexnetMap(nn.Module):
         self.d_features = pretrained_alexnet.features[:6]
         self.features = nn.Sequential(
             nn.Conv2d(192+192, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
+            
             nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, kernel_size=5, padding=2),
@@ -51,7 +54,10 @@ class AlexnetMap(nn.Module):
             nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(inplace=True)
         )
-        self.grasp = nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1)
+        self.grasp = nn.Sequential(
+            nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1),
+            nn.Tanh()
+        )
 
         self.confidence = nn.Sequential(
             nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
@@ -88,33 +94,46 @@ class AlexnetMap(nn.Module):
     def unfreeze_depth_backbone(self):
         for param in self.rgb_features.parameters():
             param.requires_grad = True
+        
+        for param in self.d_features.parameters():
+            param.requires_grad = True
 
 
 class AlexnetMap_v2(nn.Module):
     def __init__(self):
         super(AlexnetMap_v2, self).__init__()
         pretrained_alexnet = alexnet(pretrained=True)
-        self.rgb_features = pretrained_alexnet.features[:6]
-        self.d_features = pretrained_alexnet.features[:6]
+        self.rgb_features = pretrained_alexnet.features[:3]
+        self.d_features = pretrained_alexnet.features[:3]
         self.features = nn.Sequential(
-            nn.Conv2d(192+192, 128, kernel_size=3, padding=1),
+            nn.Conv2d(64+64, 192, kernel_size=5, padding=2),
+            #nn.BatchNorm2d(192),
             nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(192, 384, kernel_size=3, padding=1),
+            #nn.BatchNorm2d(384),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2),
+            nn.Conv2d(384, 256, kernel_size=3, padding=1),
+            #nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=5, padding=2),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            #nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
+            
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=5, padding=2),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(inplace=True)
         )
         self.grasp = nn.Sequential(
-            nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1),
+            nn.ConvTranspose2d(64, 5, kernel_size=11, stride=4, output_padding=1),
             nn.Tanh()
         )
 
         self.confidence = nn.Sequential(
-            nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
+            nn.ConvTranspose2d(64, 1, kernel_size=11, stride=4, output_padding=1),
             nn.Sigmoid()
         )
 
@@ -163,82 +182,18 @@ class AlexnetMap_v3(nn.Module):
             nn.Conv2d(192+192, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(inplace=True)
-        )
-        self.grasp = nn.Sequential(
-            nn.ConvTranspose2d(32, 5, kernel_size=11, stride=4, output_padding=1),
-            nn.Tanh()
-        )
-
-        self.confidence = nn.Sequential(
-            nn.ConvTranspose2d(32, 1, kernel_size=11, stride=4, output_padding=1),
-            nn.Sigmoid()
-        )
-
-        for param in self.rgb_features.parameters():
-            param.requires_grad = False
-        for param in self.d_features.parameters():
-            param.requires_grad = False
-
-        # xavier initialization for combined feature extractor
-        for m in self.features.modules():
-            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
-                nn.init.xavier_uniform_(m.weight, gain=1)
-
-    def forward(self, x):
-        rgb = x[:, :3, :, :]
-        d = torch.unsqueeze(x[:, 3, :, :], dim=1)
-        d = torch.cat((d, d, d), dim=1)
-
-        rgb = self.rgb_features(rgb)
-        d = self.d_features(d)
-        x = torch.cat((rgb, d), dim=1)
-
-        x = self.features(x)
-        grasp = self.grasp(x)
-        confidence = self.confidence(x)
-        out = torch.cat((grasp, confidence), dim=1)
-
-        return out
-
-    # Unfreeze pretrained layers (1st & 2nd CNN layer)
-    def unfreeze_depth_backbone(self):
-        for param in self.rgb_features.parameters():
-            param.requires_grad = True
-        
-        for param in self.d_features.parameters():
-            param.requires_grad = True
-
-
-class AlexnetMap_v4(nn.Module):
-    def __init__(self):
-        super(AlexnetMap_v4, self).__init__()
-        pretrained_alexnet = alexnet(pretrained=True)
-        self.rgb_features = pretrained_alexnet.features[:6]
-        self.d_features = pretrained_alexnet.features[:6]
-        self.features = nn.Sequential(
-            nn.Conv2d(192+192, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
             nn.Dropout(0.2),
 
             ResidualBlock(128, 128, 3),
+            #nn.Dropout(0.2),
 
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2),
-            
+
             ResidualBlock(128, 128, 3),
+            #nn.Dropout(0.2),
             
             nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),
