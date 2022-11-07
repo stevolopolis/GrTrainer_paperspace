@@ -109,16 +109,20 @@ class AlexnetMap_v2(nn.Module):
             nn.Conv2d(64+64, 192, kernel_size=5, padding=2),
             #nn.BatchNorm2d(192),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
             nn.MaxPool2d(kernel_size=3, stride=2),
             nn.Conv2d(192, 384, kernel_size=3, padding=1),
             #nn.BatchNorm2d(384),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
             nn.Conv2d(384, 256, kernel_size=3, padding=1),
             #nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
             #nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.2),
             
             nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),
@@ -145,6 +149,12 @@ class AlexnetMap_v2(nn.Module):
         # xavier initialization for combined feature extractor
         for m in self.features.modules():
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+                nn.init.xavier_uniform_(m.weight, gain=1)
+        for m in self.grasp.modules():
+            if isinstance(m, (nn.ConvTranspose2d)):
+                nn.init.xavier_uniform_(m.weight, gain=1)
+        for m in self.confidence.modules():
+            if isinstance(m, (nn.ConvTranspose2d)):
                 nn.init.xavier_uniform_(m.weight, gain=1)
 
     def forward(self, x):

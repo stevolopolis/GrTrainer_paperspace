@@ -25,8 +25,15 @@ class ResidualBlock(nn.Module):
 class GrConvMap(nn.Module):
     def __init__(self):
         super(GrConvMap, self).__init__()
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=9, stride=1, padding=4)
-        self.bn1 = nn.BatchNorm2d(32)
+        grconvnet3 = torch.load('epoch_48_iou_0.93')
+        self.rgbd_features = nn.Sequential(
+            grconvnet3.conv1,
+            grconvnet3.bn1,
+            nn.ReLU(inplace=True)
+        )
+
+        #self.conv1 = nn.Conv2d(4, 32, kernel_size=9, stride=1, padding=4)
+        #self.bn1 = nn.BatchNorm2d(32)
 
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
@@ -57,12 +64,26 @@ class GrConvMap(nn.Module):
             nn.Sigmoid()
         )
 
+        for param in self.rgbd_features.parameters():
+            param.requires_grad = False
+
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
                 nn.init.xavier_uniform_(m.weight, gain=1)
+            elif isinstance(m, ResidualBlock):
+                for sub_m in m.modules():
+                    if isinstance(sub_m, nn.Conv2d):
+                        nn.init.xavier_uniform_(sub_m.weight, gain=1)
+        for m in self.grasp.modules():
+            if isinstance(m, (nn.ConvTranspose2d)):
+                nn.init.xavier_uniform_(m.weight, gain=1)
+        for m in self.confidence.modules():
+            if isinstance(m, (nn.ConvTranspose2d)):
+                nn.init.xavier_uniform_(m.weight, gain=1)
 
     def forward(self, x_in):
-        x = F.relu(self.bn1(self.conv1(x_in)))
+        x = self.rgbd_features(x_in)
+        #x = F.relu(self.bn1(self.conv1(x_in)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = self.res1(x)
@@ -79,3 +100,9 @@ class GrConvMap(nn.Module):
         out = torch.cat((grasp, confidence), dim=1)
 
         return out
+
+    # Unfreeze pretrained layers (1st CNN layer)
+    def unfreeze_depth_backbone(self):
+        for param in self.rgbd_features.parameters():
+            param.requires_grad = True
+

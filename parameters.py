@@ -15,12 +15,13 @@ class Params:
     def __init__(self):
         # Model name -- '<type>_<raw/pretrained>_<input>_<version>'
         # CLS name format
-        self.MODEL_NAME = 'alexnetMap_cls_top5_v1'
+        self.MODEL_NAME = 'alexnetMap_cls_top5_v2.3'
+        #self.MODEL_NAME = 'grConvMap_cls_top5_v1'
         # Grasp name format
-        #self.MODEL_NAME = 'alexnetMap_grasp_top5_v1'
+        #self.MODEL_NAME = 'alexnetMap_grasp_top5_v2.1'
 
         # device: cpu / gpu
-        self.DEVICE = torch.device('cuda') if torch.cuda.is_available() \
+        self.DEVICE = torch.device('cpu') if torch.cuda.is_available() \
                                       else torch.device('cpu')
         # Training params
         self.NUM_CLASS = 5
@@ -29,7 +30,7 @@ class Params:
         self.IMG_SIZE = (self.NUM_CHANNEL, self.OUTPUT_SIZE, self.OUTPUT_SIZE) 
         self.EPOCHS = 150
         self.LR = 5e-4
-        self.BATCH_SIZE = 128
+        self.BATCH_SIZE = 64
         self.TRAIN_VAL_SPLIT = 0.2
 
         # Paths
