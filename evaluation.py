@@ -98,7 +98,7 @@ def get_confidence_map(img, output):
 
 def visualize_cls(model):
     """Visualize the model's grasp predictions on test images one by one."""
-    data_loader = DataLoader('data/top_5_compressed_v2/test', 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(params.TEST_PATH_ALT, 1, params.TRAIN_VAL_SPLIT)
 
     for i, (img, cls_map, label) in enumerate(data_loader.load_cls()):
         output = model(img)
@@ -124,7 +124,7 @@ def visualize_cls(model):
 
 def visualize_grasp(model):
     """Visualize the model's grasp predictions on test images one by one."""
-    data_loader = DataLoader('data/top_5_compressed_v2/test', 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(params.TEST_PATH_ALT, 1, params.TRAIN_VAL_SPLIT)
 
     #for (img, cls_map, label) in data_loader.load_cls():
     for i, (img, grasp_map, candidates) in enumerate(data_loader.load_grasp()):

@@ -37,6 +37,7 @@ class Params:
         self.DATA_PATH = 'data'
         self.TRAIN_PATH = 'data/top_5_compressed/train'
         self.TEST_PATH = 'data/top_5_compressed/test'
+        self.TEST_PATH_ALT = 'data/top_5_compressed_v2/test'
         self.LABEL_FILE = 'cls_top_5.txt'
         self.MODEL_PATH = 'trained-models'
         self.MODEL_LOG_PATH = 'trained-models/%s' % self.MODEL_NAME
