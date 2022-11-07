@@ -3,10 +3,10 @@ This repo contains the essential code used to train our cls/grasp model using th
 
  Task | CLS | Grasping
  :---: | :---: | :---:
- Accuracy (%) | 99+ | 73
- Epoch | 100 | 150
- Learning Rate | 2.5e^4 | 5e^4
- Loss | nll + bce (l1) | nll + l1
+ Accuracy (%) | 85.25 | 81.25
+ Epoch | 150 | 150
+ Learning Rate | 5e^4 | 5e^4
+ Loss | double-log | double-log
 
  ## Files to interact for training
  ```train.py``` - Train cls/grasp model (uncomment/comment specific lines to switch between different downstream tasks).
