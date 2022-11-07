@@ -46,10 +46,11 @@ class DataLoader:
     Grasp labels:
         - self.load_grasp_label() and self.get_grasp_label()
     """
-    def __init__(self, path, batch_size, train_val_split=0.2, verbose=True):
+    def __init__(self, path, batch_size, train_val_split=0.2, return_mask=False, verbose=True):
         self.path = path
         self.batch_size = batch_size
         self.train_val_split = train_val_split
+        self.return_mask = return_mask
 
         # Get list of class names
         self.img_cls_list = self.get_cls_id()
@@ -131,7 +132,10 @@ class DataLoader:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
                 cls_map = transforms.functional.rotate(cls_map, img_angle)
 
-            yield (img_rgbd, cls_map, img_cls_idx)
+            if not self.return_mask:
+                yield (img_rgbd, cls_map, img_cls_idx)
+            else:
+                yield (img_rgbd, cls_map, img_cls_idx, img_mask)
 
     def load_grasp_batch(self):
         """Yields a batch of Grasp training data -- (img, grasp-label, grasp-candidates)."""
