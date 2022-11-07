@@ -40,16 +40,16 @@ def get_cls_acc(model, dataset=params.TEST_PATH):
     return accuracy, round(loss / total, 3)
 
 
-def get_grasp_acc(model):
+def get_grasp_acc(model, dataset=params.TEST_PATH):
     """Returns the test accuracy and loss of a Grasp model."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(dataset, 1, params.TRAIN_VAL_SPLIT)
 
     loss = 0
     correct = 0
     total = 0
 
     pbar = tqdm(total=data_loader.n_data)
-    for (img, candidates) in data_loader.load_grasp_old():
+    for (img, map, candidates) in data_loader.load_grasp():
         output = model(img)
         # Move grasp channel to the end
         output = torch.moveaxis(output, 1, -1)
@@ -98,12 +98,13 @@ def get_confidence_map(img, output):
 
 def visualize_cls(model):
     """Visualize the model's grasp predictions on test images one by one."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(params.TEST_PATH_ALT, 1, params.TRAIN_VAL_SPLIT)
 
     for i, (img, cls_map, label) in enumerate(data_loader.load_cls()):
         output = model(img)
-        print(output[0, :, 112, 112])
-        print(cls_map[0, :, 112, 112])
+
+        cls_map[:, :5, :, :] = (cls_map[:, :5, :, :] + 1) / 2
+        output[:, :5, :, :] = (output[:, :5, :, :] + 1) / 2
 
         model_cls_map = get_cls_map(img, output[0])
         true_cls_map = get_cls_map(img, cls_map[0])
@@ -123,10 +124,10 @@ def visualize_cls(model):
 
 def visualize_grasp(model):
     """Visualize the model's grasp predictions on test images one by one."""
-    data_loader = DataLoader(params.TEST_PATH, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(params.TEST_PATH_ALT, 1, params.TRAIN_VAL_SPLIT)
 
     #for (img, cls_map, label) in data_loader.load_cls():
-    for i, (img, grasp_map) in enumerate(data_loader.load_grasp()):
+    for i, (img, grasp_map, candidates) in enumerate(data_loader.load_grasp()):
         output = model(img)
         # Get confidence map
         conf_on_rgb = get_confidence_map(img, output)
@@ -161,6 +162,7 @@ def map2singlegrasp(output):
     output_grasp[0] = (max_grasp_x + output_grasp[0]) / params.OUTPUT_SIZE
     output_grasp[1] = (max_grasp_y + output_grasp[1]) / params.OUTPUT_SIZE
     output_grasp[3] = output_grasp[3] / params.OUTPUT_SIZE
+    output_grasp[4] = output_grasp[4] / 2 + 0.5
     # Unsqeeze grasp tensor
     output_grasp = torch.unsqueeze(output_grasp, 0)
 
@@ -174,6 +176,8 @@ def denormalize_grasp(grasp_map):
     grasp_map[:, :, :, 1] *= params.OUTPUT_SIZE
     # Denormalize width
     grasp_map[:, :, :, 3] *= params.OUTPUT_SIZE
+    # Denormalize height
+    grasp_map[:, :, :, 4] = grasp_map[:, :, :, 4] / 2 + 0.5
 
 
 def get_ref_map(ref1, ref2, ref3, ref4, cls_idx):
@@ -204,6 +208,7 @@ def get_cls_map(img, cls_map, color_roll=0):
     conf_map = torch.cat((conf_map, conf_map, conf_map, conf_map, conf_map), 2)
     pred_map = cls_map[:, :, :5]
     pred_val_map = conf_map * pred_map
+    
     weighted_pred_map, idx_map = torch.max(pred_val_map, 2)
     weighted_pred_map = weighted_pred_map / torch.max(weighted_pred_map)
 

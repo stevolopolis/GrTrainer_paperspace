@@ -46,10 +46,11 @@ class DataLoader:
     Grasp labels:
         - self.load_grasp_label() and self.get_grasp_label()
     """
-    def __init__(self, path, batch_size, train_val_split=0.2, verbose=True):
+    def __init__(self, path, batch_size, train_val_split=0.2, return_mask=False, verbose=True):
         self.path = path
         self.batch_size = batch_size
         self.train_val_split = train_val_split
+        self.return_mask = return_mask
 
         # Get list of class names
         self.img_cls_list = self.get_cls_id()
@@ -119,7 +120,7 @@ class DataLoader:
             img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
             # Open Mask npy file
             img_mask = np.load(open(os.path.join(img_path, img_name + '_mask.npy'), 'rb'))
-            img_mask = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
+            img_mask = torch.tensor(img_mask, dtype=torch.float32).to(params.DEVICE)
 
             cls_map = mask_to_cls_map(img_mask, label)
             cls_map = torch.unsqueeze(cls_map, 0).to(params.DEVICE)
@@ -129,27 +130,33 @@ class DataLoader:
 
             if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-                img_mask = transforms.functional.rotate(cls_map, img_angle)
+                cls_map = transforms.functional.rotate(cls_map, img_angle)
 
-            yield (img_rgbd, cls_map, img_cls_idx)
+            if not self.return_mask:
+                yield (img_rgbd, cls_map, img_cls_idx)
+            else:
+                yield (img_rgbd, cls_map, img_cls_idx, img_mask)
 
     def load_grasp_batch(self):
         """Yields a batch of Grasp training data -- (img, grasp-label, grasp-candidates)."""
-        for i, (img, grasp_map) in enumerate(self.load_grasp()):
+        for i, (img, grasp_map, grasp_list) in enumerate(self.load_grasp()):
             if i % self.batch_size == 0:
                 img_batch = img
                 grasp_map_batch = grasp_map
+                grasp_list_batch = grasp_list
             elif (i+1) % self.batch_size == 0:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
-                yield (img_batch, grasp_map_batch)
+                grasp_list_batch = torch.cat((grasp_list_batch, grasp_list), dim=0)
+                yield (img_batch, grasp_map_batch, grasp_list_batch)
             else:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
+                grasp_list_batch = torch.cat((grasp_list_batch, grasp_list), dim=0)
 
         # This line of code catches the final few instances (less that batch_size)
         if (i + 1) % self.batch_size != 0:
-            yield (img_batch, grasp_map_batch)
+            yield (img_batch, grasp_map_batch, grasp_list_batch)
 
     def load_grasp(self):
         """Yields a single instance of Grasp training data -- (img, grasp-map)."""
@@ -172,7 +179,11 @@ class DataLoader:
             # Get Grasp map
             grasp_map = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_map_grasps.npy'), 'rb'))
             grasp_map = torch.tensor(grasp_map).to(params.DEVICE)
-            grasp_map = self.noramlize_grasp_map(grasp_map)
+            grasp_map = self.normalize_grasp_map(grasp_map)
+            # Get Grasp list
+            grasp_list = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_txt_grasps.npy'), 'rb'))
+            grasp_list = torch.tensor(grasp_list).to(params.DEVICE)
+            grasp_list = self.normalize_grasp_arr(grasp_list)
             
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d)
@@ -181,41 +192,7 @@ class DataLoader:
             if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
             
-            yield (img_rgbd, grasp_map)
-
-    def load_grasp_old(self):
-        """
-        Yields a single instance of Grasp training data -- (img, grasp-candidates-list).
-        Takes data from original dataset.
-        """
-        for img_id_with_var in self.img_id_list:
-            img_angle = int(img_id_with_var.split('_')[-1])
-            img_id = img_id_with_var.split('_')[-2]
-            img_var = img_id_with_var.split('_')[0]
-            img_name = img_var + '_' + img_id
-            img_cls = self.img_id_map[img_id_with_var]
-
-            img_path = os.path.join(self.path, img_cls, img_id)
-
-            # Open RGB image with PIL
-            img_rgb = np.load(open(os.path.join(img_path, img_name + '_RGB.npy'), 'rb'))
-            img_rgb = torch.tensor(img_rgb, dtype=torch.float32).to(params.DEVICE)
-            # Open Depth image with PIL
-            img_d = np.load(open(os.path.join(img_path, img_name + '_perfect_depth.npy'), 'rb'))
-            img_d = torch.tensor(img_d, dtype=torch.float32).to(params.DEVICE)
-
-            # Get Grasp label candidates and training label from '_grasps.txt' file
-            grasp_list = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_txt_grasps.npy'), 'rb'))
-            grasp_list = torch.tensor(grasp_list).to(params.DEVICE)
-            grasp_list = self.noramlize_grasp_arr(grasp_list)
-            # List of Grasp candidates
-            grasp_list = np.array(grasp_list)
-            
-            # Normalize and combine rgb with depth channel
-            img_rgbd = self.process(img_rgb, img_d)
-            
-            yield (img_rgbd,
-                   torch.tensor(grasp_list, dtype=torch.float32).to(params.DEVICE))
+            yield (img_rgbd, grasp_map, grasp_list)
         
     def process(self, rgb, d):
         """
@@ -251,28 +228,30 @@ class DataLoader:
 
         return img
 
-    def noramlize_grasp_map(self, grasp_map):
+    def normalize_grasp_map(self, grasp_map):
         """Returns normalize grasping labels."""
         # Normalize x-coord
         grasp_map[:, :, 0] /= 224
         # Normalize y-coord
         grasp_map[:, :, 1] /= 224
         # Normalize width
-        grasp_map[:, :, 3] /= 224
+        grasp_map[:, :, 3] /= 244
+        # Normalize height (range: [-1, 1])
+        grasp_map[:, :, 4] = (grasp_map[:, :, 3] - 0.5) * 2
         # Reshape to match input dim
         grasp_map = torch.unsqueeze(grasp_map, 0)
         grasp_map = torch.moveaxis(grasp_map, -1, 1)
 
         return grasp_map
         
-    def noramlize_grasp_arr(self, label):
+    def normalize_grasp_arr(self, label):
         """Returns normalize grasping labels."""
         # Normalize x-coord
-        label[:, :, 0] /= 224
+        label[:, 0] /= 224
         # Normalize y-coord
-        label[:, :, 1] /= 224
+        label[:, 1] /= 224
         # Normalize width
-        label[:, :, 3] /= 224
+        label[:, 3] /= 224
 
         return label
 
@@ -303,9 +282,9 @@ class DataLoader:
             if not img_path.endswith('map_grasps.npy'):
                 continue
             
-            img_cls = img_path.split('/')[-3]
+            img_cls = img_path.split('\\')[-3]
             # E.g. '<img_idx>_<img_id>_<angle>_<img_type>.png'
-            img_name = img_path.split('/')[-1]
+            img_name = img_path.split('\\')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_angle = img_name.split('_')[-3]
@@ -376,6 +355,7 @@ def mask_to_cls_map(img_mask, label):
     img_mask = torch.cat((img_mask, img_mask, img_mask, img_mask, img_mask, img_mask), 2)
     background_val = img_mask[0][0]
     background_mask = torch.ones((params.OUTPUT_SIZE, params.OUTPUT_SIZE, 6)) * -1
+    background_mask[:, :, 5] = 0.0
     cls_map = torch.where(img_mask == background_val, background_mask, label.cpu())
     cls_map = torch.moveaxis(cls_map, -1, 0)
 

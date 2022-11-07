@@ -20,7 +20,7 @@ def map2grasp(map):
             grasp_y = (i + map[i][j][1]) / params.OUTPUT_SIZE
             grasp_theta = map[i][j][2]
             grasp_w = map[i][j][3] / params.OUTPUT_SIZE
-            grasp_h = map[i][j][4]
+            grasp_h = map[i][j][4] / 2 + 0.5
             grasp = (grasp_x, grasp_y, grasp_theta, grasp_w, grasp_h)
             grasp_candidates.add(grasp)
 
@@ -90,7 +90,6 @@ def get_correct_grasp_preds(output, target):
     correct = 0
     for i in range(len(target)):
         bbox_target = grasps_to_bboxes(target[i])
-        #print(output[i], target[i])
         for j in range(len(bbox_target)):
             iou = box_iou(bbox_output[i], bbox_target[j])
             pre_theta = output[i][2] * 180 - 90
