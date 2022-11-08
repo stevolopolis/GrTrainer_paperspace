@@ -46,7 +46,7 @@ class DataLoader:
     Grasp labels:
         - self.load_grasp_label() and self.get_grasp_label()
     """
-    def __init__(self, path, batch_size, train_val_split=0.2, return_mask=False, verbose=True):
+    def __init__(self, path, batch_size, train_val_split=0.2, return_mask=False, verbose=True, seed=42):
         self.path = path
         self.batch_size = batch_size
         self.train_val_split = train_val_split
@@ -59,6 +59,7 @@ class DataLoader:
         self.n_data = len(self.img_id_map.keys())
         self.img_id_list = list(self.img_id_map.keys())
         # Shuffle ids for training
+        random.seed(seed)
         random.shuffle(self.img_id_list)
 
         # Custom data augmentations
@@ -95,7 +96,7 @@ class DataLoader:
         if (i + 1) % self.batch_size != 0:
             yield (img_batch, map_batch, label_batch)
     
-    def load_cls(self):
+    def load_cls(self, include_depth=True):
         """Yields a single instance of CLS training data -- (img, label)."""
         for img_id_with_var in self.img_id_list:
             img_angle = int(img_id_with_var.split('_')[-1])
@@ -126,7 +127,7 @@ class DataLoader:
             cls_map = torch.unsqueeze(cls_map, 0).to(params.DEVICE)
 
             # Normalize and combine rgb with depth channel
-            img_rgbd = self.process(img_rgb, img_d)
+            img_rgbd = self.process(img_rgb, img_d, include_depth=include_depth)
 
             if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
@@ -158,7 +159,7 @@ class DataLoader:
         if (i + 1) % self.batch_size != 0:
             yield (img_batch, grasp_map_batch, grasp_list_batch)
 
-    def load_grasp(self):
+    def load_grasp(self, include_depth=True):
         """Yields a single instance of Grasp training data -- (img, grasp-map)."""
         for img_id_with_var in self.img_id_list:
             img_angle = int(img_id_with_var.split('_')[-1])
@@ -186,7 +187,7 @@ class DataLoader:
             grasp_list = self.normalize_grasp_arr(grasp_list)
             
             # Normalize and combine rgb with depth channel
-            img_rgbd = self.process(img_rgb, img_d)
+            img_rgbd = self.process(img_rgb, img_d, include_depth=include_depth)
 
             # Augmentation on image -- random rotations (can only do 1/2 pi rotations for label accuracy)
             if img_angle != 0:
@@ -194,7 +195,7 @@ class DataLoader:
             
             yield (img_rgbd, grasp_map, grasp_list)
         
-    def process(self, rgb, d):
+    def process(self, rgb, d, include_depth=True):
         """
         Returns rgbd image with correct format for inputing to model:
             - Imagenet normalization
@@ -203,25 +204,22 @@ class DataLoader:
         rgb = rgb / 255.0
         rgb = torch.moveaxis(rgb, -1, 0)
         rgb = self.transformation_rgb(rgb)
-        if d is None:
-            img = rgb
-        elif params.NUM_CHANNEL == 3:
-            # Input channels -- (gray, gray, depth)
-            #rgb = transforms.Grayscale(num_output_channels=1)(rgb)
-            #rgb = torch.cat((rgb, rgb), axis=0)
-            # Input channels -- (red, green, depth)
-            d = torch.unsqueeze(d, 2)
-            d = d - torch.mean(d)
-            d = torch.clip(d, -1, 1)
-            d = torch.moveaxis(d, -1, 0)
-            img = torch.cat((rgb[:2], d), axis=0)
-        else:
+        if include_depth:
             # Input channels -- (red, green, blue, depth)
             d = torch.unsqueeze(d, 2)
             d = d - torch.mean(d)
             d = torch.clip(d, -1, 1)
             d = torch.moveaxis(d, -1, 0)
             img = torch.cat((rgb, d), axis=0)
+        else:
+            # rgb
+            img = rgb
+            # depth
+            #d = torch.unsqueeze(d, 2)
+            #d = d - torch.mean(d)
+            #d = torch.clip(d, -1, 1)
+            #d = torch.moveaxis(d, -1, 0)
+            #img = torch.cat((d, d, d), axis=0)
 
         img = torch.unsqueeze(img, 0)
         img = img.to(params.DEVICE)
