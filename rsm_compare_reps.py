@@ -21,11 +21,11 @@ SAMPLES_PER_CLS = 20
 
 
 def get_comparison_models():
-    cls_model = models.AlexnetMap_v2().to(params.DEVICE)
+    cls_model = models.AlexnetMap_v3().to(params.DEVICE)
     cls_model.load_state_dict(torch.load(params.CLS_MODEL_PATH))
     cls_model.eval()
 
-    grasp_model = models.AlexnetMap_v2().to(params.DEVICE)
+    grasp_model = models.AlexnetMap_v3().to(params.DEVICE)
     grasp_model.load_state_dict(torch.load(params.GRASP_MODEL_PATH))
     grasp_model.eval()
 
@@ -75,7 +75,7 @@ def combine_rsm(rsm1, rsm2, rsm3, rsm4):
 
 
 def visualize_rsm(rsm, model_name, samples_per_cls, id):
-    heatmap = sb.heatmap(rsm, cmap='viridis', vmin=0, vmax=1, square=True)
+    heatmap = sb.heatmap(rsm, cmap='viridis', square=True)
 
     if 'inter_model_corr' not in os.listdir('vis'):
         os.makedirs('vis/inter_model_corr')
@@ -88,14 +88,14 @@ def visualize_rsm(rsm, model_name, samples_per_cls, id):
     heatmap.hlines([4], *heatmap.get_xlim(), color='red', linewidth=1)
     heatmap.vlines([4], *heatmap.get_ylim(), color='red', linewidth=1)
     
-    plt.title('RDM for Alexnet(imagenet / cornell)')
+    plt.title('RDM for alexnetMap-Alexnet(imagenet / cornell)')
     plt.xlabel('Layers of Alexnet (Imagenet / Cornell)')
     plt.xticks([2, 6.5], ['CLS', 'GRASP'])
-    plt.ylabel('Layers of Alexnet (Imagenet / Cornell)')
-    plt.yticks([2, 6.5], ['CLS', 'GRASP'])
+    plt.ylabel('Layers of alexnetMap')
+    plt.yticks([2, 6], ['CLS', 'GRASP'])
     plt.tick_params(axis='x')
     plt.tick_params(axis='y', rotation=0)
-    plt.savefig('vis/inter_model_corr/refernece-rdm-imagenet-cornell')#%s/nInstance_%s/%s_nInstance_%s_sample_%s' % (model_name, samples_per_cls, model_name, samples_per_cls, id))
+    plt.savefig('vis/inter_model_corr/%s/nInstance_%s/%s_nInstance_%s_sample_%s' % (model_name, samples_per_cls, model_name, samples_per_cls, id))
     plt.close()
 
 
@@ -104,23 +104,18 @@ def compare_reps(samples_per_cls=20, n_samples=10):
     for i in range(n_samples):
         cls_model, grasp_model, cls_baseline_model, grasp_baseline_model = get_comparison_models()
 
-        #cls_rsm, cls_activations, _ = get_RSM(cls_model, samples_per_cls=samples_per_cls, model_type='alexnetMap', seed=i)
-        #grasp_rsm, grasp_activations, _ = get_RSM(grasp_model, samples_per_cls=samples_per_cls, model_type='alexnetMap', seed=i)
+        cls_rsm, cls_activations, _ = get_RSM(cls_model, samples_per_cls=samples_per_cls, model_type='alexnetMap', seed=i)
+        grasp_rsm, grasp_activations, _ = get_RSM(grasp_model, samples_per_cls=samples_per_cls, model_type='alexnetMap', seed=i)
         cls_baseline_rsm, cls_baseline_activations, _ = get_RSM(cls_baseline_model, samples_per_cls=samples_per_cls, model_type='alexnet', seed=i)
         grasp_baseline_rsm, grasp_baseline_activations, _ = get_RSM(grasp_baseline_model, samples_per_cls=samples_per_cls, model_type='alexnet_ductran', seed=i)
 
-        # Temporary useless layers / kernels to ignore
-        #cls_rsm.pop('feat_15')
-        #grasp_rsm.pop('feat_15')
-        cls_baseline_rsm.pop('feat_0')
-
-        cls_cls_corr = get_rsm_corr(cls_baseline_rsm, cls_baseline_rsm)
-        grasp_cls_corr = get_rsm_corr(grasp_baseline_rsm, cls_baseline_rsm)
-        cls_grasp_corr = get_rsm_corr(cls_baseline_rsm, grasp_baseline_rsm)
-        grasp_grasp_corr = get_rsm_corr(grasp_baseline_rsm, grasp_baseline_rsm)
+        cls_cls_corr = get_rsm_corr(cls_rsm, cls_baseline_rsm)
+        grasp_cls_corr = get_rsm_corr(grasp_rsm, cls_baseline_rsm)
+        cls_grasp_corr = get_rsm_corr(cls_rsm, grasp_baseline_rsm)
+        grasp_grasp_corr = get_rsm_corr(grasp_rsm, grasp_baseline_rsm)
 
         combined_corr = combine_rsm(cls_cls_corr, grasp_cls_corr, cls_grasp_corr, grasp_grasp_corr)
-        visualize_rsm(combined_corr, 'alexnetMap', samples_per_cls, i)
+        visualize_rsm(combined_corr, 'alexnetMap_v3_2', samples_per_cls, i)
 
 
 if __name__ == '__main__':

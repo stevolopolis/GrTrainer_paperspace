@@ -1,7 +1,5 @@
 import random
 import torch
-import torch.nn as nn
-from functools import partial
 import collections
 
 from rsm_generate_SSM import *
@@ -9,6 +7,7 @@ from rsm_generate_SSM import *
 from parameters import Params
 from data_loader_v2 import DataLoader
 from inference.models import alexnet as models
+from model_utils import *
 
 params = Params()
 
@@ -62,38 +61,6 @@ def reorder_data(dataLoader, randomized_subset_n=None, seed=42):
         new_list = new_chairs_id + new_lamps_id + new_figurines_id + new_plants_id + new_pens_id
 
     dataLoader.img_id_list = new_list
-
-
-def alexnetMap_register_hook(model, save_activation):
-    """Register forward hook to all conv layers in alexnetMap model."""
-    """for name, m in model.rgb_features.named_modules():
-        if isinstance(m, nn.Conv2d):
-            # partial to assign the layer name to each hook
-            m.register_forward_hook(partial(save_activation, 'rgbFeat_'+name))
-    for name, m in model.d_features.named_modules():
-        if isinstance(m, nn.Conv2d):
-            # partial to assign the layer name to each hook
-            m.register_forward_hook(partial(save_activation, 'dFeat_'+name))"""
-    for name, m in model.features.named_modules():
-        if isinstance(m, nn.Conv2d):
-            # partial to assign the layer name to each hook
-            m.register_forward_hook(partial(save_activation, 'feat_'+name))
-
-
-def alexnet_register_hook(model, save_activation):
-    """Register forward hook to all conv layers in alexnetMap model."""
-    for name, m in model.features.named_modules():
-        if isinstance(m, nn.Conv2d):
-            # partial to assign the layer name to each hook
-            m.register_forward_hook(partial(save_activation, 'feat_'+name))
-
-
-def alexnet_ductran_register_hook(model, save_activation):
-    """Register forward hook to all conv layers in alexnetMap model."""
-    for name, m in model.named_modules():
-        if isinstance(m, nn.Conv2d):
-            # partial to assign the layer name to each hook
-            m.register_forward_hook(partial(save_activation, 'feat_'+name))
 
 
 def foward_pass_dataset(model, dataLoader, model_type):
