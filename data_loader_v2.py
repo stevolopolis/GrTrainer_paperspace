@@ -91,9 +91,9 @@ class DataLoader:
                 map_batch = torch.cat((map_batch, cls_map), dim=0)
                 label_batch = torch.cat((label_batch, label), dim=0)
 
-        # This line catches the final few instances (less than batch_size)
-        if (i + 1) % self.batch_size != 0:
-            yield (img_batch, map_batch, label_batch)
+            # This line catches the final few instances (less than batch_size)
+            if (i + 1) % self.batch_size != 0:
+                yield (img_batch, map_batch, label_batch)
     
     def load_cls(self):
         """Yields a single instance of CLS training data -- (img, label)."""
@@ -282,9 +282,9 @@ class DataLoader:
             if not img_path.endswith('map_grasps.npy'):
                 continue
             
-            img_cls = img_path.split('\\')[-3]
+            img_cls = img_path.split('/')[-3]
             # E.g. '<img_idx>_<img_id>_<angle>_<img_type>.png'
-            img_name = img_path.split('\\')[-1]
+            img_name = img_path.split('/')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_angle = img_name.split('_')[-3]
@@ -293,6 +293,7 @@ class DataLoader:
 
         n_data = len(img_id_dict.keys())
         n_train, n_val = self.get_train_val(n_data)
+        #print("debug1:",img_id_dict)
         if verbose:
             print('Dataset size: %s' % n_data)
             print('Training steps: %s -- Val steps: %s' % (n_train, n_val))
@@ -307,7 +308,6 @@ class DataLoader:
                 # remove '\n' from string
                 cls = cls[:-1]
                 cls_list.append(cls)
-
         return cls_list
 
     def get_train_val(self, n_data=None):
