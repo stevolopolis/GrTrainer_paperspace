@@ -22,14 +22,16 @@ from grasp_utils import get_correct_grasp_preds, grasps_to_bboxes, box_iou, map2
 
 params = Params()
 
-def get_cls_acc(model, dataset=params.TEST_PATH):
+def get_cls_acc(model, seed=None, dataset=params.TEST_PATH, truncation=None):
     """Returns the test accuracy and loss of a CLS model."""
-    data_loader = DataLoader(dataset, 2, params.TRAIN_VAL_SPLIT, verbose=False)
+    data_loader = DataLoader(dataset, params.BATCH_SIZE, params.TRAIN_VAL_SPLIT, verbose=False, seed=seed)
 
     loss = 0
     correct = 0
     total = 0
-    for (img, cls_map, label) in data_loader.load_batch():
+    for i, (img, cls_map, label) in enumerate(data_loader.load_batch()):
+        if truncation is not None and (i * params.BATCH_SIZE / data_loader.n_data) > truncation:
+            break
         output = model(img)
         batch_correct, batch_total = get_correct_cls_preds_from_map(output, label)
         correct += batch_correct
