@@ -126,15 +126,25 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
     n = len(weight)
     shapley = torch.zeros(n)
     shapley_var = torch.zeros(n)
-    shapley_lb = torch.zeros(n)
-    shapley_ub = torch.zeros(n)
+    shapley_lb = torch.ones(n) * (-1e4)
+    shapley_ub = torch.ones(n) * (1e4)
     que = range(n)
+
+    # Initial model performance
+    v_init = criterion(model)
 
     # TMAB Iterations
     while que:
         t += 1
         random.shuffle(weight)  # shuffle weights in place
-        v = [criterion(model)]  # performance partition
+        v = [v_init]  # performance partition
+        
+        # empirical Bernstein confidence bound parameters
+        p = 2  # rate of decay for d_t. Details in Empirical Bernstein Stopping paper
+        d_t = (delta * (p-1)/p)/(t**p)
+        berstein_alpha = (2*np.log(3/d_t)/t)**(1/2)
+        berstein_beta = 3*r*np.log(3/d_t)/t
+        
         for j in range(1, n + 1):
             if j in que:
                 if v[j - 1] < vt:
@@ -148,9 +158,8 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
                 shapley_var[weight[j - 1].id] = (((v[j - 1] - v[j]) - shapley[weight[j - 1].id]) ** 2
                                                  + shapley_var[weight[j - 1].id] * (t - 1)) / t
                 # empirical Bernstein confidence bound
-                p = 2  # rate of decay for d_t. Details in Empirical Bernstein Stopping paper
-                d_t = (delta * (p-1)/p)/t**p
-                c_t = shapley_var[weight[j - 1].id] * (2*np.log(3/d_t)/t)**(1/2) + 3*r*np.log(3/d_t)/t
+                c_t = shapley_var[weight[j - 1].id] * berstein_alpha + berstein_beta
+                
                 shapley_lb[weight[j - 1].id] = max(shapley_lb[weight[j - 1].id], shapley[weight[j - 1].id] - c_t)
                 shapley_ub[weight[j - 1].id] = min(shapley_ub[weight[j - 1].id], shapley[weight[j - 1].id] + c_t)
         # reassign que
