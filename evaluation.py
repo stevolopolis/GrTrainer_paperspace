@@ -22,14 +22,22 @@ from grasp_utils import get_correct_grasp_preds, grasps_to_bboxes, box_iou, map2
 
 params = Params()
 
-def get_cls_acc(model, dataset=params.TEST_PATH):
+def get_cls_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, truncation=None, device=params.DEVICE):
     """Returns the test accuracy and loss of a CLS model."""
-    data_loader = DataLoader(dataset, 2, params.TRAIN_VAL_SPLIT, verbose=False)
+    data_loader = DataLoader(dataset,
+                             params.BATCH_SIZE,
+                             train_val_split=params.TRAIN_VAL_SPLIT,
+                             include_depth=include_depth,
+                             verbose=False,
+                             seed=seed,
+                             device=device)
 
     loss = 0
     correct = 0
     total = 0
-    for (img, cls_map, label) in data_loader.load_batch():
+    for i, (img, cls_map, label) in enumerate(data_loader.load_batch()):
+        if truncation is not None and (i * params.BATCH_SIZE / data_loader.n_data) > truncation:
+            break
         output = model(img)
         batch_correct, batch_total = get_correct_cls_preds_from_map(output, label)
         correct += batch_correct
@@ -40,9 +48,9 @@ def get_cls_acc(model, dataset=params.TEST_PATH):
     return accuracy, round(loss / total, 3)
 
 
-def get_grasp_acc(model, dataset=params.TEST_PATH):
+def get_grasp_acc(model, seed, dataset=params.TEST_PATH):
     """Returns the test accuracy and loss of a Grasp model."""
-    data_loader = DataLoader(dataset, 1, params.TRAIN_VAL_SPLIT)
+    data_loader = DataLoader(dataset, 1, params.TRAIN_VAL_SPLIT, seed=seed)
 
     loss = 0
     correct = 0
@@ -96,11 +104,13 @@ def get_confidence_map(img, output):
     return vis_img    
 
 
-def visualize_cls(model):
+def visualize_cls(model, truncation=None):
     """Visualize the model's grasp predictions on test images one by one."""
     data_loader = DataLoader(params.TEST_PATH_ALT, 1, params.TRAIN_VAL_SPLIT)
 
     for i, (img, cls_map, label) in enumerate(data_loader.load_cls()):
+        if truncation is not None and (i * params.BATCH_SIZE / data_loader.n_data) > truncation:
+            break
         output = model(img)
 
         cls_map[:, :5, :, :] = (cls_map[:, :5, :, :] + 1) / 2

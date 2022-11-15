@@ -9,12 +9,13 @@ params = Params()
 
 class AddGaussianNoise(torch.nn.Module):
     """Gaussian noise augmentation fn used in DataLoader class."""
-    def __init__(self, mean=0., std=1.):
+    def __init__(self, mean=0., std=1., device=params.DEVICE):
         self.std = std
         self.mean = mean
+        self.device = device
         
     def __call__(self, tensor):
-        return tensor + torch.randn(tensor.size()).to(params.DEVICE) * self.std + self.mean
+        return tensor + torch.randn(tensor.size()).to(self.device) * self.std + self.mean
     
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
