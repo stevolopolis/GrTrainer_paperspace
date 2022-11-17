@@ -50,6 +50,18 @@ cls v3.2
     - pretrained unfrozen after epoch 75
     - lrscheduler: x0.5 per 25 epochs
 
+cls v3.2.2
+    - pretrained: 1st cnn layer
+    - beginning channel count: 32
+    - added dropout after each encoder conv layer (0.3)
+    - *random init for all layers
+    - set common seed (42)
+    - lr: 5e-4
+    - batchsize: 128
+    - pretrained unfrozen after epoch 75
+    - lrscheduler: x0.5 per 25 epochs
+    - TEST: 82.0%
+
 cls v2.10.1
     - pretrained: 1st cnn layer
     - beginning channel count: 32
@@ -120,3 +132,15 @@ grasp v2.11.1
     - batchsize: 128
     - pretrained unfrozen after epoch 75
     - lrscheduler: x0.5 per 25 epochs
+
+grasp v3.2.2
+    - pretrained: 1st cnn layer
+    - beginning channel count: 32
+    - added dropout after each encoder conv layer (0.3)
+    - *random init for all layers
+    - set common seed (42)
+    - lr: 5e-4
+    - batchsize: 128
+    - pretrained unfrozen after epoch 75
+    - lrscheduler: x0.5 per 25 epochs
+    - TEST: 82.0%
