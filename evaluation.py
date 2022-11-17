@@ -32,7 +32,6 @@ def get_cls_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, 
                              verbose=False,
                              seed=seed,
                              device=device)
-
     loss = 0
     correct = 0
     total = 0

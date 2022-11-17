@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 import os
 
+from evaluation import visualize_cls
 
 class TensorID:
     """
@@ -35,7 +36,6 @@ def get_truncate(shap, top_k, var_bound=1e-3):
         return True
     else:
         return False
-
 
 def layer_silence(model: nn.Module, layer: str, weights: list) -> nn.Module:
     """
@@ -77,6 +77,7 @@ def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: 
         vt: early truncation performance vt
         epsilon: failure tolerance. Default: 0
         delta: failure probability. Default: 0.05
+
     Return:
         shapley: torch tensor where each element corresponds to shapley score
     """
@@ -110,8 +111,8 @@ def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: 
     return shapley
 
 
-def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt: float, epsilon: float, delta: float,
-                            r: float) -> torch.Tensor:
+def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt: float, r: float=25.0, 
+                            epsilon: float=1e-4, delta: float=0.05, device: str='cuda-0') -> torch.Tensor:
     """
     Truncated Multi Armed Bandit Method
     compute the shapley score for each conv filter of a layer
@@ -146,8 +147,9 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
     # Initial model performance
     v_init = criterion(model)
 
+    pbar = tqdm()
     # TMAB Iterations
-    while que:
+    while len(que) != 0:
         t += 1
         random.shuffle(weight)  # shuffle weights in place
         v = [v_init]  # performance partition
@@ -157,7 +159,9 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
         d_t = (delta * (p-1)/p)/(t**p)
         berstein_alpha = (2*np.log(3/d_t)/t)**(1/2)
         berstein_beta = 3*r*np.log(3/d_t)/t
-        
+
+        trunc = 0
+
         for j in range(1, n + 1):
             if j in que:
                 if v[j - 1] < vt:
@@ -165,16 +169,21 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
                 else:
                     partial_model = layer_silence(model, layer, weight[j:])
                     v.append(criterion(partial_model))
+
+                    trunc += 1
+
                 # calculate mean
                 shapley[weight[j - 1].id] = (v[j - 1] - v[j] + shapley[weight[j - 1].id] * (t - 1)) / t
                 # calculate empirical variance sigma^2
                 shapley_var[weight[j - 1].id] = (((v[j - 1] - v[j]) - shapley[weight[j - 1].id]) ** 2
                                                  + shapley_var[weight[j - 1].id] * (t - 1)) / t
+
                 # empirical Bernstein confidence bound
                 c_t = shapley_var[weight[j - 1].id] * berstein_alpha + berstein_beta
                 
                 shapley_lb[weight[j - 1].id] = max(shapley_lb[weight[j - 1].id], shapley[weight[j - 1].id] - c_t)
                 shapley_ub[weight[j - 1].id] = min(shapley_ub[weight[j - 1].id], shapley[weight[j - 1].id] + c_t)
+
         # reassign que
         k_th_largest_shapley = np.partition(shapley.detach().numpy(), -k)[-k]
         que = []
@@ -182,7 +191,10 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
             if shapley_lb[i] + epsilon < k_th_largest_shapley < shapley_ub[i] - epsilon:
                 que.append(i)
 
-        save_shapley(shapley, shapley_var, shapley_lb, shapley_ub, t)
+        save_shapley(shapley, shapley_var, shapley_lb, shapley_ub, t, device)
+        
+        pbar.set_postfix({'Trunc': '%s/%s' % (trunc, n+1), 'Nk': '%s/%s' % (len(que), n+1),'Bd': sum(shapley_ub) / len(shapley_ub)})
+        pbar.update()
 
     return shapley
 
@@ -194,8 +206,9 @@ def save_shapley(shap_mean, shap_var, shap_lb, shap_ub, iter):
     shap_ub = np.array(shap_ub)
     iter_arr = np.array([iter])
 
-    np.save(os.path.join('shap', 'shap_mean'), shap_mean)
-    np.save(os.path.join('shap', 'shap_va'), shap_var)
-    np.save(os.path.join('shap', 'shap_lb'), shap_lb)
-    np.save(os.path.join('shap', 'shap_ub'), shap_ub)
-    np.save(os.path.join('shap', 'iterations'), iter_arr)
+    np.save(os.path.join('shap', 'shap_mean-%s' % device), shap_mean)
+    np.save(os.path.join('shap', 'shap_var-%s' % device), shap_var)
+    np.save(os.path.join('shap', 'shap_lb-%s' % device), shap_lb)
+    np.save(os.path.join('shap', 'shap_ub-%s' % device), shap_ub)
+    np.save(os.path.join('shap', 'iterations-%s' % device), iter_arr)
+
