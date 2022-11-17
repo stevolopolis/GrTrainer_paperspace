@@ -122,7 +122,7 @@ def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: 
 
 
 def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt: float, r: float=25.0, 
-                            epsilon: float=1e-4, delta: float=0.05) -> torch.Tensor:
+                            epsilon: float=1e-4, delta: float=0.05, device: str='cuda-0') -> torch.Tensor:
     """
     Truncated Multi Armed Bandit Method
     compute the shapley score for each conv filter of a layer
@@ -198,7 +198,7 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
             if shapley_lb[i] + epsilon < k_th_largest_shapley < shapley_ub[i] - epsilon:
                 que.append(i)
 
-        save_shapley(shapley, shapley_var, shapley_lb, shapley_ub)
+        save_shapley(shapley, shapley_var, shapley_lb, shapley_ub, t, device)
         
         pbar.set_postfix({'Trunc': '%s/%s' % (trunc, n+1), 'Nk': '%s/%s' % (len(que), n+1),'Bd': sum(shapley_ub) / len(shapley_ub)})
         pbar.update()
@@ -206,13 +206,15 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
     return shapley
 
 
-def save_shapley(shap_mean, shap_var, shap_lb, shap_ub):
+def save_shapley(shap_mean, shap_var, shap_lb, shap_ub, iter, device):
     shap_mean = np.array(shap_mean)
     shap_var = np.array(shap_var)
     shap_lb = np.array(shap_lb)
     shap_ub = np.array(shap_ub)
+    iter_arr = np.array([iter])
 
-    np.save(os.path.join('shap', 'shap_mean'), shap_mean)
-    np.save(os.path.join('shap', 'shap_var'), shap_var)
-    np.save(os.path.join('shap', 'shap_lb'), shap_lb)
-    np.save(os.path.join('shap', 'shap_ub'), shap_ub)
+    np.save(os.path.join('shap', 'shap_mean-%s' % device), shap_mean)
+    np.save(os.path.join('shap', 'shap_var-%s' % device), shap_var)
+    np.save(os.path.join('shap', 'shap_lb-%s' % device), shap_lb)
+    np.save(os.path.join('shap', 'shap_ub-%s' % device), shap_ub)
+    np.save(os.path.join('shap', 'iterations-%s' % device), iter_arr)
