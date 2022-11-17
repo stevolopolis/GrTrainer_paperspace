@@ -132,9 +132,9 @@ class DataLoader:
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d, include_depth=include_depth)
 
-            if img_angle != 0:
+            """if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-                cls_map = transforms.functional.rotate(cls_map, img_angle)
+                cls_map = transforms.functional.rotate(cls_map, img_angle)"""
 
             if not self.return_mask:
                 yield (img_rgbd, cls_map, img_cls_idx)
@@ -147,17 +147,17 @@ class DataLoader:
             if i % self.batch_size == 0:
                 img_batch = img
                 grasp_map_batch = grasp_map
-                grasp_list_batch = grasp_list
+                grasp_list_batch = [grasp_list]
             elif (i+1) % self.batch_size == 0:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
-                grasp_list_batch = torch.cat((grasp_list_batch, grasp_list), dim=0)
+                grasp_list_batch.append(grasp_list)
                 yield (img_batch, grasp_map_batch, grasp_list_batch)
             else:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
-                grasp_list_batch = torch.cat((grasp_list_batch, grasp_list), dim=0)
-
+                grasp_list_batch.append(grasp_list)
+            
         # This line of code catches the final few instances (less that batch_size)
         if (i + 1) % self.batch_size != 0:
             yield (img_batch, grasp_map_batch, grasp_list_batch)
@@ -188,7 +188,7 @@ class DataLoader:
             grasp_list = np.load(open(os.path.join(img_path, img_name + '_' + str(img_angle) + '_txt_grasps.npy'), 'rb'))
             grasp_list = torch.tensor(grasp_list).to(self.device)
             grasp_list = self.normalize_grasp_arr(grasp_list)
-            
+
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d, include_depth=include_depth)
 
@@ -238,7 +238,7 @@ class DataLoader:
         # Normalize width
         grasp_map[:, :, 3] /= 244
         # Normalize height (range: [-1, 1])
-        grasp_map[:, :, 4] = (grasp_map[:, :, 3] - 0.5) * 2
+        grasp_map[:, :, 4] = (grasp_map[:, :, 4] - 0.5) * 2
         # Reshape to match input dim
         grasp_map = torch.unsqueeze(grasp_map, 0)
         grasp_map = torch.moveaxis(grasp_map, -1, 1)

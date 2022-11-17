@@ -18,6 +18,7 @@ from parameters import Params
 from data_loader_v2 import DataLoader
 from tqdm import tqdm
 from utils import get_correct_preds, get_acc, get_correct_cls_preds_from_map
+from grasp_utils import get_correct_grasp_preds_from_map
 from grasp_utils import get_correct_grasp_preds, grasps_to_bboxes, box_iou, map2grasp, get_max_grasp
 
 params = Params()
@@ -48,30 +49,40 @@ def get_cls_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, 
     return accuracy, round(loss / total, 3)
 
 
-def get_grasp_acc(model, seed, dataset=params.TEST_PATH):
+def get_grasp_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, truncation=None, device=params.DEVICE):
     """Returns the test accuracy and loss of a Grasp model."""
-    data_loader = DataLoader(dataset, 1, params.TRAIN_VAL_SPLIT, seed=seed)
+    data_loader = DataLoader(dataset,
+                             params.BATCH_SIZE,
+                             train_val_split=params.TRAIN_VAL_SPLIT,
+                             include_depth=include_depth,
+                             verbose=False,
+                             seed=seed,
+                             device=device)
 
     loss = 0
     correct = 0
     total = 0
 
-    pbar = tqdm(total=data_loader.n_data)
-    for (img, map, candidates) in data_loader.load_grasp():
+    for i, (img, map, candidates) in enumerate(data_loader.load_grasp_batch()):
+        if truncation is not None and (i * params.BATCH_SIZE / data_loader.n_data) > truncation:
+            break
         output = model(img)
         # Move grasp channel to the end
         output = torch.moveaxis(output, 1, -1)
+        map = torch.moveaxis(map, 1, -1)
+        # Denoramlize grasps
+        denormalize_grasp(output)
+        denormalize_grasp(map)
+
         # Convert grasp map into single grasp prediction
         output_grasp = map2singlegrasp(output)
         
-        batch_correct, batch_total = get_correct_grasp_preds(output_grasp, [candidates])
+        batch_correct, batch_total =  get_correct_grasp_preds(output_grasp, candidates) #get_correct_grasp_preds_from_map(output, map)
         correct += batch_correct
         total += batch_total
 
         # Uncomment if visualize grasp for one instance
         #plot_grasp(img, output_grasp, candidates)
-
-        pbar.update(1)
     
     accuracy = get_acc(correct, total)
 
@@ -163,18 +174,14 @@ def visualize_grasp(model):
 
 def map2singlegrasp(output):
     """Convert output grasp map into single grasp prediction."""
-    # Denoramlize grasps
-    denormalize_grasp(output)
     # Get grasp output with max confidence
-    max_grasp_x, max_grasp_y = get_max_grasp(output[0])
-    output_grasp = output[0, max_grasp_y, max_grasp_x, :5]
+    max_grasp_x, max_grasp_y = get_max_grasp(output)
+    output_grasp = output[[i for i in range(len(max_grasp_y))], max_grasp_y, max_grasp_x, :5]
     # Model grasp to grasp parameters
-    output_grasp[0] = (max_grasp_x + output_grasp[0]) / params.OUTPUT_SIZE
-    output_grasp[1] = (max_grasp_y + output_grasp[1]) / params.OUTPUT_SIZE
-    output_grasp[3] = output_grasp[3] / params.OUTPUT_SIZE
-    output_grasp[4] = output_grasp[4] / 2 + 0.5
-    # Unsqeeze grasp tensor
-    output_grasp = torch.unsqueeze(output_grasp, 0)
+    output_grasp[:, 0] = (max_grasp_x + output_grasp[:, 0]) / params.OUTPUT_SIZE
+    output_grasp[:, 1] = (max_grasp_y + output_grasp[:, 1]) / params.OUTPUT_SIZE
+    output_grasp[:, 3] = output_grasp[:, 3] / params.OUTPUT_SIZE
+    output_grasp[:, 4] = output_grasp[:, 4] / 2 + 0.5
 
     return output_grasp
 

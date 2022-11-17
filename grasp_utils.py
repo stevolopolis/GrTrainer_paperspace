@@ -29,12 +29,13 @@ def map2grasp(map):
 
 
 def get_max_grasp(map):
-    confidence_map = map[:, :, 5]
-    x_max, x_max_idx = torch.max(confidence_map, 1)
-    max_grasp_y = torch.max(x_max, 0)[1]
-    max_grasp_x = x_max_idx[max_grasp_y]
+    confidence_map = map[:, :, :, 5]
+    flattened_confidence_map = torch.reshape(confidence_map, (confidence_map.shape[0], -1))
+    max_idx = torch.max(flattened_confidence_map, 1)[1]
+    max_x_idx = max_idx % confidence_map.shape[1]
+    max_y_idx = max_idx // confidence_map.shape[2]
 
-    return max_grasp_x, max_grasp_y
+    return max_x_idx, max_y_idx
 
 
 def bboxes_to_grasps(bboxes):
@@ -111,27 +112,35 @@ def get_correct_grasp_preds_from_map(output, target):
         - iou > 0.25
         - angle difference < 30
     """
-    output = torch.moveaxis(output, 1, -1)
-    target = torch.moveaxis(target, 1, -1)
-
     correct = 0
-    for i in range(len(target)):
-        target_grasp = map2grasp(target[i])
-        target_bbox = grasps_to_bboxes(target_grasp)
 
-        max_grasp_x, max_grasp_y = get_max_grasp(output[i])
+    max_grasp_x, max_grasp_y = get_max_grasp(output)
+    
+    output_grasp = output[[i for i in range(len(max_grasp_y))], max_grasp_y, max_grasp_x, :5]
+    # Model grasp to grasp parameters
+    output_grasp[:, 0] = (max_grasp_x + output_grasp[:, 0]) / params.OUTPUT_SIZE
+    output_grasp[:, 1] = (max_grasp_y + output_grasp[:, 1]) / params.OUTPUT_SIZE
+    output_grasp[:, 3] = output_grasp[:, 3] / params.OUTPUT_SIZE
+    output_grasp[:, 4] = output_grasp[:, 4] / 2 + 0.5
+    
+    output_bbox = grasps_to_bboxes(output_grasp)
 
-        output_grasp = output[i, max_grasp_y, max_grasp_x, :5]
-        output_bbox = grasps_to_bboxes(torch.unsqueeze(output_grasp, 0))
+    target_grasp = target[[i for i in range(len(max_grasp_y))], max_grasp_y, max_grasp_x, :5]
+    # Model grasp to grasp parameters
+    target_grasp[:, 0] = (max_grasp_x + target_grasp[:, 0]) / params.OUTPUT_SIZE
+    target_grasp[:, 1] = (max_grasp_y + target_grasp[:, 1]) / params.OUTPUT_SIZE
+    target_grasp[:, 3] = target_grasp[:, 3] / params.OUTPUT_SIZE
+    target_grasp[:, 4] = target_grasp[:, 4] / 2 + 0.5
+
+    target_bbox = grasps_to_bboxes(target_grasp)
+
+    for i in range(len(target_bbox)):
+        iou = box_iou(output_bbox[i], target_bbox[i])
+        pre_theta = output_grasp[i][2] * 180 - 90
+        target_theta = target_grasp[i][2] * 180 - 90
+        angle_diff = torch.abs(pre_theta - target_theta)
         
-        for j in range(len(target_bbox)):
-            iou = box_iou(output_bbox, target_bbox[j])
-            pre_theta = output_grasp[2] * 180 - 90
-            target_theta = target_grasp[j][2] * 180 - 90
-            angle_diff = torch.abs(pre_theta - target_theta)
-            
-            if angle_diff < 30 and iou > 0.25:
-                correct += 1
-                break
+        if angle_diff < 30 and iou > 0.25:
+            correct += 1
 
     return correct, len(target)
