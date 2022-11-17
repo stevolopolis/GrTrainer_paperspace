@@ -9,3 +9,6 @@
 *.zip
 dump
 *.png
+.DS*
+.ipynb_checkpoints
+.idea

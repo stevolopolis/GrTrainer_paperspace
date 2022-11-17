@@ -95,9 +95,9 @@ class DataLoader:
                 map_batch = torch.cat((map_batch, cls_map), dim=0)
                 label_batch = torch.cat((label_batch, label), dim=0)
 
-        # This line catches the final few instances (less than batch_size)
-        if (i + 1) % self.batch_size != 0:
-            yield (img_batch, map_batch, label_batch)
+            # This line catches the final few instances (less than batch_size)
+            if (i + 1) % self.batch_size != 0:
+                yield (img_batch, map_batch, label_batch)
     
     def load_cls(self, include_depth=True):
         """Yields a single instance of CLS training data -- (img, label)."""
@@ -294,6 +294,7 @@ class DataLoader:
 
         n_data = len(img_id_dict.keys())
         n_train, n_val = self.get_train_val(n_data)
+        #print("debug1:",img_id_dict)
         if verbose:
             print('Dataset size: %s' % n_data)
             print('Training steps: %s -- Val steps: %s' % (n_train, n_val))
@@ -308,7 +309,6 @@ class DataLoader:
                 # remove '\n' from string
                 cls = cls[:-1]
                 cls_list.append(cls)
-
         return cls_list
 
     def get_train_val(self, n_data=None):

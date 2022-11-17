@@ -37,7 +37,6 @@ def get_truncate(shap, top_k, var_bound=1e-3):
     else:
         return False
 
-
 def layer_silence(model: nn.Module, layer: str, weights: list) -> nn.Module:
     """
     Silence the impact of weights within the <layer> of the <model>, except those in <weights>.
@@ -65,7 +64,7 @@ def layer_silence(model: nn.Module, layer: str, weights: list) -> nn.Module:
     return model_new
 
 
-def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: int, vt: float, verbose=True)\
+def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: int, vt: float, verbose=True) \
         -> torch.Tensor:
     """
     Truncated Monte Carlo method
@@ -78,6 +77,7 @@ def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: 
         vt: early truncation performance vt
         epsilon: failure tolerance. Default: 0
         delta: failure probability. Default: 0.05
+
     Return:
         shapley: torch tensor where each element corresponds to shapley score
     """
@@ -90,34 +90,24 @@ def layer_wise_tmc_shapley(model: nn.Module, layer: str, criterion, iterations: 
     assert weight is not None, f"Layer {layer} not found"
     weight = [TensorID(w, i) for i, w in enumerate(weight)]  # assign id to weight
     n = len(weight)
-    shapley = torch.zeros((n, 3))
+    shapley = torch.zeros(n)
 
     # TMC Iterations
-    truncate = False
-    while not truncate or t == 1:
+    for _ in range(iterations):
         t += 1
         if verbose:
             print(f"Iteration {1}/{iterations}:")
         random.shuffle(weight)  # shuffle weights in place
         v = [criterion(model)]  # performance partition
-        pbar = tqdm(total=n+1)
-        for j in range(1, n+1):
-            if v[j-1] < vt:
-                v.append(v[j-1])
+        for j in tqdm(range(1, n + 1)):
+            if v[j - 1] < vt:
+                v.append(v[j - 1])
             else:
                 partial_model = layer_silence(model, layer, weight[j:])
                 v.append(criterion(partial_model))
-            # calculate mean, mean-squared, variance shapley
-            shapley[weight[j-1].id, 0] = (v[j-1] - v[j] + shapley[weight[j-1].id, 0] * (t-1))/t
-            shapley[weight[j-1].id, 1] = ((v[j-1] - v[j]) ** 2 + shapley[weight[j-1].id, 1] * (t-1))/t
-            shapley[weight[j-1].id, 2] = shapley[weight[j-1].id, 1] - (shapley[weight[j-1].id, 0] ** 2)
-
-            pbar.set_postfix({'Acc': v[-1]})
-            pbar.update(1)
-        
-        truncate = get_truncate(shapley, 10, var_bound=1e-3)
-        print(sort_shap(shapley)[0])
-
+                print(v)
+            # calculate mean shapley
+            shapley[weight[j - 1].id] = (v[j - 1] - v[j] + shapley[weight[j - 1].id] * (t - 1)) / t
     return shapley
 
 
@@ -157,7 +147,6 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
     # Initial model performance
     v_init = criterion(model)
 
-
     pbar = tqdm()
     # TMAB Iterations
     while len(que) != 0:
@@ -165,13 +154,14 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
         random.shuffle(weight)  # shuffle weights in place
         v = [v_init]  # performance partition
         
-        # empirical Bernstein confidence bound
+        # empirical Bernstein confidence bound parameters
         p = 2  # rate of decay for d_t. Details in Empirical Bernstein Stopping paper
         d_t = (delta * (p-1)/p)/(t**p)
         berstein_alpha = (2*np.log(3/d_t)/t)**(1/2)
         berstein_beta = 3*r*np.log(3/d_t)/t
 
         trunc = 0
+
         for j in range(1, n + 1):
             if j in que:
                 if v[j - 1] < vt:
@@ -179,6 +169,7 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
                 else:
                     partial_model = layer_silence(model, layer, weight[j:])
                     v.append(criterion(partial_model))
+
                     trunc += 1
 
                 # calculate mean
@@ -187,7 +178,9 @@ def layer_wise_tmab_shapley(model: nn.Module, layer: str, criterion, k: int, vt:
                 shapley_var[weight[j - 1].id] = (((v[j - 1] - v[j]) - shapley[weight[j - 1].id]) ** 2
                                                  + shapley_var[weight[j - 1].id] * (t - 1)) / t
 
+                # empirical Bernstein confidence bound
                 c_t = shapley_var[weight[j - 1].id] * berstein_alpha + berstein_beta
+                
                 shapley_lb[weight[j - 1].id] = max(shapley_lb[weight[j - 1].id], shapley[weight[j - 1].id] - c_t)
                 shapley_ub[weight[j - 1].id] = min(shapley_ub[weight[j - 1].id], shapley[weight[j - 1].id] + c_t)
 
@@ -218,3 +211,4 @@ def save_shapley(shap_mean, shap_var, shap_lb, shap_ub, iter, device):
     np.save(os.path.join('shap', 'shap_lb-%s' % device), shap_lb)
     np.save(os.path.join('shap', 'shap_ub-%s' % device), shap_ub)
     np.save(os.path.join('shap', 'iterations-%s' % device), iter_arr)
+
