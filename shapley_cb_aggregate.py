@@ -1,6 +1,11 @@
 import os
+import sys
 import numpy as np
 import h5py
+
+from parameters import Params
+
+params = Params()
 
 
 def get_players(directory):
@@ -35,12 +40,12 @@ def get_result(h5file):
 
 
 # Experiment parameters
-SAVE_FREQ = 10
-MODEL_NAME = 'alexnetMap_cls'
-LAYER = 'rgb_features.0'
+SAVE_FREQ = 1
+MODEL_NAME = params.GRASP_MODEL_NAME
+LAYER = 'features.0'
 METRIC = 'accuracy'
-TRUNCATION_ACC = 50.
-DEVICE = 'cuda:0'
+TRUNCATION_ACC = 20.
+DEVICE = sys.argv[1]
 DIR = 'shap'
 
 R = 100.
@@ -53,7 +58,7 @@ run_dir = os.path.join(DIR, run_name)
 
 while True:
     ## Start
-    players = get_players(DIR)
+    players = get_players(run_dir)
     instatiate_chosen_players(run_dir, players)    
     results = get_results_list(run_dir)
 

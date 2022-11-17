@@ -1,16 +1,16 @@
-import os
-import torch
 import copy
+import os
+import sys
+
 import h5py
-
 import numpy as np
+import torch
 import torch.nn as nn
-
 from tqdm import tqdm
 
-from parameters import Params
-from evaluation import get_cls_acc, get_grasp_acc
 import inference.models.alexnet as models
+from evaluation import get_cls_acc, get_grasp_acc
+from parameters import Params
 
 params = Params()
 
@@ -21,26 +21,15 @@ def remove_players(model: nn.Module, layer: str, removed_idx: list) -> nn.Module
     Silenced weights are replaced by the mean weights of other functional weights
     """
     # Update new weights onto new model
-    model_new = copy.deepcopy(model)
     with torch.no_grad():
-        for name, W in model_new.named_parameters():
-            if name == layer+'.weight' or name == layer+'.bias':
-                # Construct new weights
-                n = W.data.shape[0] - len(removed_idx)
-                w_mean = torch.zeros_like(W.data[0])
-                w_new = torch.zeros_like(W.data)
-                
+        for name, W in model.named_parameters():
+            if name == layer+'.weight' or name == layer+'.bias':           
                 # Calculate mean non-removed weight
-                for i, weight in enumerate(W):
-                    if np.array(str(i)) not in removed_idx:
-                        w_mean = w_mean + weight
-                        w_new[i] = weight
-                w_mean = w_mean / n
-                
-                w_new = torch.where(w_new == 0, w_mean, w_new)
+                keeping_idx = [i for i in range(W.data.shape[0]) if i not in removed_idx]
+                w_mean = torch.mean(W.data[keeping_idx], dim=0)
+                W.data[removed_idx] = w_mean
 
-                W.data = w_new
-    return model_new
+    return model
         
 
 def one_iteration(
@@ -51,13 +40,14 @@ def one_iteration(
     truncation,
     device='cuda',
     chosen_players=None,
-    metric='accuracy'):
+    metric='accuracy', 
+    task='cls'):
     '''One iteration of Neuron-Shapley algoirhtm.'''
     if chosen_players is None:
         chosen_players = np.arange(len(c.keys()))
     
     # Original performance of the model with all players present.
-    init_val = get_acc(model, task='cls', device=device)
+    init_val = get_acc(model, task=task, device=device)
 
     # A random ordering of players
     idxs = np.random.permutation(len(c.keys()))
@@ -75,8 +65,8 @@ def one_iteration(
             removing_players.append(players[c[idx]])
             partial_model = remove_players(model, layer, removing_players)     
 
-            new_val = get_acc(partial_model, task='cls', device=device)
-            marginals[c[idx]] = (old_val - new_val) / len(c[idx])
+            new_val = get_acc(partial_model, task=task, device=device)
+            marginals[c[idx]] = old_val - new_val
             old_val = new_val
             
             if metric == 'accuracy' and new_val <= truncation:
@@ -87,7 +77,7 @@ def one_iteration(
                 break
         else:
             partial_model = remove_players(model, layer, removing_players)      
-            old_val = get_acc(partial_model, task='cls', device=device)
+            old_val = get_acc(partial_model, task=task, device=device)
 
         pbar.set_postfix({'Acc': new_val})
         pbar.update(1)
@@ -120,9 +110,9 @@ class TensorID:
         return self.__str__()
 
 
-def get_model(device=params.DEVICE):
-    model = models.AlexnetMap_v2().to(device)
-    model.load_state_dict(torch.load(params.CLS_MODEL_PATH))
+def get_model(model_path, device=params.DEVICE):
+    model = models.AlexnetMap_v3().to(device)
+    model.load_state_dict(torch.load(model_path))
     model.eval()
 
     return model
@@ -138,8 +128,8 @@ def get_weights(model, layer):
     assert weight is not None, f"Layer {layer} not found"
     assert bias is not None, f"Layer {layer} not found"
 
-    weights = [TensorID(layer+'.weight', None, i) for i, w in enumerate(weight)]
-    biases = [TensorID(layer+'.bias', None, i) for i, w in enumerate(bias)]
+    weights = [TensorID(layer+'.weight', None, i) for i, _ in enumerate(weight)]
+    biases = [TensorID(layer+'.bias', None, i) for i, _ in enumerate(bias)]
 
     return weights, biases
 
@@ -152,7 +142,7 @@ def get_players(directory, weights):
     np.sort(players)
     open(os.path.join(directory, 'players.txt'), 'w').write(','.join(players))
 
-    return np.array(players)
+    return np.array(players).astype(np.int8)
 
 
 def instantiate_tmab_logs(players, log_dir):
@@ -170,14 +160,20 @@ def instantiate_tmab_logs(players, log_dir):
 
 # Experiment parameters
 SAVE_FREQ = 1
-MODEL_NAME = params.CLS_MODEL_NAME
-LAYER = 'rgb_features.0'
+TASK = 'grasp'
+LAYER = 'features.0'
 METRIC = 'accuracy'
-TRUNCATION_ACC = 50.
-DEVICE = 'cuda:0'
+TRUNCATION_ACC = 20.
+DEVICE = sys.argv[1]
 DIR = 'shap'
+if TASK == 'cls':
+    MODEL_NAME = params.CLS_MODEL_NAME
+    MODEL_PATH = params.CLS_MODEL_PATH
+elif TASK == 'grasp':
+    MODEL_NAME = params.GRASP_MODEL_NAME
+    MODEL_PATH = params.GRASP_MODEL_PATH
 
-PARALLEL_INSTANCE = 0
+PARALLEL_INSTANCE = sys.argv[2]
 
 ## CB directory
 run_name = '%s_%s' % (MODEL_NAME, LAYER)
@@ -191,7 +187,7 @@ if run_name not in os.listdir(DIR):
     os.mkdir(run_dir)
 
 ## Load Model and get weights
-model = get_model(DEVICE)
+model = get_model(MODEL_PATH, DEVICE)
 weights, bias = get_weights(model, LAYER)
 ## Instantiate or load player list
 players = get_players(run_dir, weights)
@@ -199,7 +195,8 @@ players = get_players(run_dir, weights)
 mem_tmc, idxs_tmc = instantiate_tmab_logs(players, log_dir)
 
 ## Running CB-Shapley
-c = {i: np.array([i]) for i in range(len(players))}
+#c = {i: np.array([i]) for i in range(len(players))}
+c = {i: i for i in range(len(players))}
 
 counter = 0
 while True:
@@ -214,14 +211,15 @@ while True:
         chosen_players = None
         
     idxs, vals =  one_iteration(
-        model,
+        copy.deepcopy(model),
         LAYER, 
         players,
         c,
         TRUNCATION_ACC,
         device=DEVICE,
         chosen_players=chosen_players,
-        metric=METRIC
+        metric=METRIC,
+        task=TASK
     )
 
     mem_tmc = np.concatenate([mem_tmc, vals])
