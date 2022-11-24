@@ -3,7 +3,8 @@ This repo contains the essential code used to train our cls/grasp model using th
 
  Task | CLS | Grasping
  :---: | :---: | :---:
- Accuracy (%) | 85.25 | 81.75
+ Train Accuracy (%) | 87.00 | 76.10
+ Test Accuracy (%) | 81.25 | 78.25
  Epoch | 150 | 150
  Learning Rate | 5e^4 | 5e^4
  Loss | double-log | double-log
