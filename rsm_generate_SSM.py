@@ -4,6 +4,7 @@ import sklearn
 import sklearn.decomposition
 import sklearn.random_projection
 from scipy.stats import kendalltau
+import scipy.spatial.distance as dist
 
 
 def compute_corr(Yl, Yp):
@@ -37,7 +38,7 @@ def compute_similarity_matrices(feature_dict, layers=None):
 			try:
 				activation_arr = feature_dict[layer]
 				activations_flattened = activation_arr.reshape((activation_arr.shape[0],-1))
-				similarity_mat_dict[layer] = sim_pearson(activations_flattened) #np.corrcoef(activations_flattened)
+				similarity_mat_dict[layer] = sim_metric(activations_flattened, 'euclidean')  # sim_pearson(activations_flattened)
 			except Exception as e:
 				print(layer)
 				raise e
@@ -49,7 +50,7 @@ def compute_similarity_matrices(feature_dict, layers=None):
 				#for kernel in range(activation_arr.shape[1]):
 					#similarity_mat_dict[layer][kernel] = sim_pearson(activations_flattened[:, kernel, :]) #np.corrcoef(activations_flattened)
 				activations_flattened = activation_arr.reshape((activation_arr.shape[0], -1))
-				similarity_mat_dict[layer] = sim_pearson(activations_flattened)
+				similarity_mat_dict[layer] = sim_metric(activations_flattened, 'correlation')  # sim_pearson(activations_flattened)
 			except Exception as e:
 				print(layer,activation_arr.shape)
 				raise e
@@ -77,6 +78,34 @@ def sim_pearson(X):
     cor = (cor.T/sigma).T
 
     return cor
+
+
+def sim_metric(X, metric='correlation'):
+	rsm = dist.squareform(dist.pdist(X, metric))
+	normalized_rsm = 1 - rsm / np.max(rsm)
+
+	return normalized_rsm
+
+
+def sim_activation_sum(X):
+	"""
+	RSM calculated usiing the difference in sum of activations.
+	Expected dimensions for X:
+		- (N, Z)
+		- N: number of samples
+		- Z: total number of pixels in the output feature maps of the selected layer
+	"""
+	N = X.shape[0]
+	sum_X = np.sum(X, axis=1)
+	rsm = np.zeros((N, N))
+	for row in range(N):
+		for col in range(N):
+			rsm[row, col] = np.abs(sum_X[row] - sum_X[col])
+
+	rsm = rsm / np.max(rsm)
+	rsm = 1 - rsm
+
+	return rsm
 
     
 def compute_ssm(similarity1, similarity2, num_shuffles=None, num_folds=None):

@@ -68,13 +68,12 @@ def get_grasp_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH
         output = model(img)
         # Move grasp channel to the end
         output = torch.moveaxis(output, 1, -1)
-        map = torch.moveaxis(map, 1, -1)
         # Denoramlize grasps
         denormalize_grasp(output)
-        denormalize_grasp(map)
 
         # Convert grasp map into single grasp prediction
         output_grasp = map2singlegrasp(output)
+        output_grasp = torch.unsqueeze(output_grasp, dim=1).repeat(1, candidates.shape[1], 1)
         
         batch_correct, batch_total =  get_correct_grasp_preds(output_grasp, candidates) #get_correct_grasp_preds_from_map(output, map)
         correct += batch_correct

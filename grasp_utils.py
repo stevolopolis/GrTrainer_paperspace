@@ -53,11 +53,11 @@ def bboxes_to_grasps(bboxes):
 def grasps_to_bboxes(grasps):
     """Converts grasp boxes to bounding boxes."""
     # convert grasp representation to bbox
-    x = grasps[:,0] * 1024
-    y = grasps[:,1] * 1024
-    theta = torch.deg2rad(grasps[:,2] * 180 - 90)
-    w = grasps[:,3] * 1024
-    h = grasps[:,4] * 100
+    x = grasps[:, :, 0] * 1024
+    y = grasps[:, :, 1] * 1024
+    theta = torch.deg2rad(grasps[:, :,2] * 180 - 90)
+    w = grasps[:, :, 3] * 1024
+    h = grasps[:, :, 4] * 100
     
     x1 = x -w/2*torch.cos(theta) +h/2*torch.sin(theta)
     y1 = y -w/2*torch.sin(theta) -h/2*torch.cos(theta)
@@ -67,7 +67,7 @@ def grasps_to_bboxes(grasps):
     y3 = y +w/2*torch.sin(theta) +h/2*torch.cos(theta)
     x4 = x -w/2*torch.cos(theta) -h/2*torch.sin(theta)
     y4 = y -w/2*torch.sin(theta) +h/2*torch.cos(theta)
-    bboxes = torch.stack((x1, y1, x2, y2, x3, y3, x4, y4), 1)
+    bboxes = torch.stack((x1, y1, x2, y2, x3, y3, x4, y4), 2)
     return bboxes
 
 
@@ -75,7 +75,8 @@ def box_iou(bbox_value, bbox_target):
     """Returns the iou between <bbox_value> and <bbox_target>."""
     p1 = Polygon(bbox_value.view(-1,2).tolist())
     p2 = Polygon(bbox_target.view(-1,2).tolist())
-    iou = p1.intersection(p2).area / (p1.area +p2.area -p1.intersection(p2).area) 
+    intersection = p1.intersection(p2).area
+    iou = intersection / (p1.area + p2.area - intersection) 
     return iou
 
 
@@ -87,17 +88,26 @@ def get_correct_grasp_preds(output, target):
         - iou > 0.25
         - angle difference < 30
     """
-    bbox_output = grasps_to_bboxes(output)
+    bbox_outputs = grasps_to_bboxes(output)
+    bbox_targets = grasps_to_bboxes(target)
+
+    pre_theta = output[:, :, 2] * 180 - 90
+    target_theta = target[:, :, 2] * 180 - 90
+    angle_diff = torch.abs(pre_theta - target_theta)
     correct = 0
     for i in range(len(target)):
-        bbox_target = grasps_to_bboxes(target[i])
-        for j in range(len(bbox_target)):
-            iou = box_iou(bbox_output[i], bbox_target[j])
-            pre_theta = output[i][2] * 180 - 90
-            target_theta = target[i][j][2] * 180 - 90
-            angle_diff = torch.abs(pre_theta - target_theta)
+        for j in range(len(bbox_targets[i])):
+            # Check if leftover bbox candidates are repeated (for data_loader speedup)
+            if j < len(bbox_targets[i]) - 1:
+                if torch.sum(bbox_targets[i, j, :] != bbox_targets[i, j + 1, :]) == 0:
+                    break
+            # Catch value error caused by invalid box (i.e. model not outputing valid box)
+            try:
+                iou = box_iou(bbox_outputs[i][j], bbox_targets[i][j])
+            except ValueError:
+                break
             
-            if angle_diff < 30 and iou > 0.25:
+            if angle_diff[i][j] < 30 and iou > 0.25:
                 correct += 1
                 break
 

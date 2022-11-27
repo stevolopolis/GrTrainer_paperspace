@@ -45,14 +45,11 @@ for epoch in range(150, 151):
     # Get test acc for CLS model
     #accuracy, loss = get_cls_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, truncation=None)
     # Get test acc for Grasp model
-    start = time.time()
-    accuracy, loss = get_grasp_acc(model, include_depth=True, seed=None, dataset=params.TEST_PATH, truncation=None)
-    end = time.time()
-    print(end - start)
+    accuracy, loss = get_grasp_acc(model, include_depth=True, seed=42, dataset=params.TRAIN_PATH, truncation=None)
 
     print('Epoch: %s' % epoch, accuracy, loss)
     
     # Visualize CLS predictions one by one
     #visualize_cls(model)
     # Visualize grasp predictions one by one
-    #(model)
+    #visualize_grasp(model)

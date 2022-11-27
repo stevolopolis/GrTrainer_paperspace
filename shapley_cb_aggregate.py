@@ -41,10 +41,10 @@ def get_result(h5file):
 
 # Experiment parameters
 SAVE_FREQ = 1
-MODEL_NAME = params.GRASP_MODEL_NAME
-LAYER = 'features.0'
+MODEL_NAME = params.CLS_MODEL_NAME
+LAYER = 'features.10'
 METRIC = 'accuracy'
-TRUNCATION_ACC = 20.
+TRUNCATION_ACC = 50.
 DEVICE = sys.argv[1]
 DIR = 'shap'
 
