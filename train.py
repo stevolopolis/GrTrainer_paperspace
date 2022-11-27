@@ -31,6 +31,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
+from torchvision.models import alexnet
 
 from tqdm import tqdm
 
@@ -42,8 +43,9 @@ from data_loader_v2 import DataLoader
 from utils import epoch_logger, log_writer, get_correct_cls_preds_from_map, get_acc
 from grasp_utils import get_correct_grasp_preds_from_map
 from evaluation import get_cls_acc, get_grasp_acc
-from loss import MapLoss
+from loss import MapLoss, DistillationLoss
 
+SEED=42
 params = Params() 
 paths = Path()
 
@@ -55,11 +57,17 @@ paths.create_log_path()
 paths.create_model_log_path()
 
 # Set common seed
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
 # Load model
-model = models.AlexnetMap_v2().to(params.DEVICE)
+model = models.AlexnetMap_v3().to(params.DEVICE)
 #model = modelsGr.GrConvMap().to(params.DEVICE)
+
+# Teacher model
+pretrained_alexnet = alexnet(pretrained=True).to(params.DEVICE)
+pretrained_alexnet.eval()
+for weights in pretrained_alexnet.features.parameters():
+    weights.requires_grad = False
 
 # Load checkpoint weights
 checkpoint_name = 'alexnetGrasp_depthconcat_convtrans_top5_v4.3'
@@ -68,7 +76,7 @@ checkpoin_epoch = 50
 #model.load_state_dict(torch.load(checkpoint_path))
 
 # Create DataLoader class
-data_loader = DataLoader(params.TRAIN_PATH, params.BATCH_SIZE, params.TRAIN_VAL_SPLIT)
+data_loader = DataLoader(params.TRAIN_PATH, params.BATCH_SIZE, params.TRAIN_VAL_SPLIT, seed=SEED)
 # Get number of training/validation steps
 n_train, n_val = data_loader.get_train_val()
 
@@ -87,14 +95,17 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
     val_total = 1
     val_correct = 1
     # Data loop for CLS training
-    for step, (img, map, label) in enumerate(data_loader.load_batch()):
+    #for step, (img, map, label) in enumerate(data_loader.load_batch()):
     # Data loop for Grasp training
-    #for step, (img, map, label) in enumerate(data_loader.load_grasp_batch()):
+    for step, (img, map, label) in enumerate(data_loader.load_grasp_batch()):
         optim.zero_grad()
         output = model(img)
 
         # Loss fn for CLS/Grasp training
         loss = MapLoss(output, map)
+        # Distillation loss (experimental)
+        #distill_loss = DistillationLoss(img, model, pretrained_alexnet, model_s_type='alexnetMap', model_t_type='alexnet')
+        #loss = loss + distill_loss * params.DISTILL_ALPHA
         
         if step < n_train:
             loss.backward()
@@ -103,10 +114,6 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
             # Write loss to log file -- 'logs/<model_name>/<model_name>_log.txt'
             log_writer(params.MODEL_NAME, epoch, step, loss.item(), train=True)
             train_history.append(loss.item())
-            # Correct prediction stats for CLS training
-            #correct, total = get_correct_cls_preds_from_map(output, label)
-            # Correct prediction stats for Grasp traning (use after training to reduce training time)
-            #correct, total = get_correct_grasp_preds_from_map(output, grasp_map)
             # Dummie prediction stats
             correct, total = 0, 1
             train_correct += correct
@@ -114,10 +121,6 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
         else:
             log_writer(params.MODEL_NAME, epoch, step, loss.item(), train=False)
             val_history.append(loss.item())
-            # Correct prediction stats for CLS training
-            #correct, total = get_correct_cls_preds_from_map(output, label)
-            # Correct prediction stats for Grasp traning (use after training to reduce training time)
-            #correct, total = get_correct_grasp_preds_from_map(output, grasp_map)
             # Dummie prediction stats
             correct, total = 0, 1
             val_correct += correct
@@ -125,11 +128,17 @@ for epoch in tqdm(range(1, params.EPOCHS + 1)):
  
     # Get testing accuracy stats (CLS / Grasp)
     if (epoch % 10 == 1):
-        train_acc, train_loss = get_cls_acc(model, params.TRAIN_PATH)
-        #train_acc, train_loss = get_grasp_acc(model, params.TRAIN_PATH)
-        test_acc, test_loss = get_cls_acc(model, params.TEST_PATH)
-        #test_acc, test_loss = get_grasp_acc(model, params.TEST_PATH)
+        model.eval()
+        #train_acc, train_loss = get_cls_acc(model, include_depth=True, seed=SEED, dataset=params.TRAIN_PATH, truncation=None)
+        train_acc, train_loss = get_grasp_acc(model, include_depth=True, seed=SEED, dataset=params.TRAIN_PATH, truncation=None)
+        #test_acc, test_loss = get_cls_acc(model, include_depth=True, seed=SEED, dataset=params.TEST_PATH, truncation=None)
+        test_acc, test_loss = get_grasp_acc(model, include_depth=True, seed=SEED, dataset=params.TRAIN_PATH, truncation=None)
         scheduler.step()
+
+        # Experimental
+        #params.DISTILL_ALPHA /= 2
+        
+        model.train()
 
     # Get training and validation accuracies
     val_acc = train_acc # get_acc(val_correct, val_total)

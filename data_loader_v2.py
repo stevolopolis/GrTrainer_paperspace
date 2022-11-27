@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image
 from torchvision import transforms
 from parameters import Params
-from utils import AddGaussianNoise
+from utils import AddGaussianNoise, tensor_concat
 
 params = Params()
 
@@ -70,10 +70,10 @@ class DataLoader:
         random_transforms = transforms.RandomApply(nn.ModuleList([AddGaussianNoise(0, .02, device=self.device)]), p=0.25)
         # Color data augmentations
         self.transformation_rgb = transforms.Compose([
-            transforms.ColorJitter(),
+            #transforms.ColorJitter(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
-            random_transforms
+                                 std=[0.229, 0.224, 0.225])
+            #random_transforms
             #transforms.Grayscale(num_output_channels=3)
         ])
         
@@ -94,10 +94,10 @@ class DataLoader:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 map_batch = torch.cat((map_batch, cls_map), dim=0)
                 label_batch = torch.cat((label_batch, label), dim=0)
-
-            # This line catches the final few instances (less than batch_size)
-            if (i + 1) % self.batch_size != 0:
-                yield (img_batch, map_batch, label_batch)
+            
+        # This line catches the final few instances (less than batch_size)
+        if (i + 1) % self.batch_size != 0:
+            yield (img_batch, map_batch, label_batch)
     
     def load_cls(self, include_depth=True):
         """Yields a single instance of CLS training data -- (img, label)."""
@@ -132,9 +132,9 @@ class DataLoader:
             # Normalize and combine rgb with depth channel
             img_rgbd = self.process(img_rgb, img_d, include_depth=include_depth)
 
-            """if img_angle != 0:
+            if img_angle != 0:
                 img_rgbd = transforms.functional.rotate(img_rgbd, img_angle)
-                cls_map = transforms.functional.rotate(cls_map, img_angle)"""
+                cls_map = transforms.functional.rotate(cls_map, img_angle)
 
             if not self.return_mask:
                 yield (img_rgbd, cls_map, img_cls_idx)
@@ -147,16 +147,16 @@ class DataLoader:
             if i % self.batch_size == 0:
                 img_batch = img
                 grasp_map_batch = grasp_map
-                grasp_list_batch = [grasp_list]
+                grasp_list_batch = torch.unsqueeze(grasp_list, dim=0)
             elif (i+1) % self.batch_size == 0:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
-                grasp_list_batch.append(grasp_list)
+                grasp_list_batch = tensor_concat(grasp_list_batch, torch.unsqueeze(grasp_list, dim=0))
                 yield (img_batch, grasp_map_batch, grasp_list_batch)
             else:
                 img_batch = torch.cat((img_batch, img), dim=0)
                 grasp_map_batch = torch.cat((grasp_map_batch, grasp_map), dim=0)
-                grasp_list_batch.append(grasp_list)
+                grasp_list_batch = tensor_concat(grasp_list_batch, torch.unsqueeze(grasp_list, dim=0))
             
         # This line of code catches the final few instances (less that batch_size)
         if (i + 1) % self.batch_size != 0:
@@ -283,9 +283,9 @@ class DataLoader:
             if not img_path.endswith('map_grasps.npy'):
                 continue
             
-            img_cls = img_path.split('/')[-3]
+            img_cls = img_path.split('\\')[-3]
             # E.g. '<img_idx>_<img_id>_<angle>_<img_type>.png'
-            img_name = img_path.split('/')[-1]
+            img_name = img_path.split('\\')[-1]
             img_var = img_name.split('_')[0]
             img_id = img_name.split('_')[1]
             img_angle = img_name.split('_')[-3]

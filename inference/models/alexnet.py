@@ -11,6 +11,8 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
+import copy 
+
 from torchvision.models import alexnet
 
 
@@ -186,8 +188,8 @@ class AlexnetMap_v3(nn.Module):
     def __init__(self):
         super(AlexnetMap_v3, self).__init__()
         pretrained_alexnet = alexnet(pretrained=True)
-        self.rgb_features = pretrained_alexnet.features[:3]
-        self.d_features = pretrained_alexnet.features[:3]
+        self.rgb_features = copy.deepcopy(pretrained_alexnet.features[:3])
+        self.d_features = copy.deepcopy(pretrained_alexnet.features[:3])
         self.features = nn.Sequential(
             nn.Conv2d(64+64, 32, kernel_size=5, padding=2),
             #nn.BatchNorm2d(192),

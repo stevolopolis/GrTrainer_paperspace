@@ -76,8 +76,10 @@ def one_iteration(
             if truncation_counter > 5:
                 break
         else:
+            removing_players.append(players[c[idx]])
             partial_model = remove_players(model, layer, removing_players)      
-            old_val = get_acc(partial_model, task=task, device=device)
+            new_val = get_acc(partial_model, task=task, device=device)
+            old_val = new_val
 
         pbar.set_postfix({'Acc': new_val})
         pbar.update(1)
@@ -161,9 +163,9 @@ def instantiate_tmab_logs(players, log_dir):
 # Experiment parameters
 SAVE_FREQ = 1
 TASK = 'grasp'
-LAYER = 'features.0'
+LAYER = 'rgb_features.0'
 METRIC = 'accuracy'
-TRUNCATION_ACC = 20.
+TRUNCATION_ACC = 50.
 DEVICE = sys.argv[1]
 DIR = 'shap'
 if TASK == 'cls':
