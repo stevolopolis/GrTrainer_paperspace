@@ -60,8 +60,8 @@ paths.create_model_log_path()
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 # Load model
-model = models.AlexnetMap_v3().to(params.DEVICE)
-#model = modelsGr.GrConvMap().to(params.DEVICE)
+#model = models.AlexnetMap_v3().to(params.DEVICE)
+model = modelsGr.GrConvMap_v1().to(params.DEVICE)
 
 # Teacher model
 pretrained_alexnet = alexnet(pretrained=True).to(params.DEVICE)

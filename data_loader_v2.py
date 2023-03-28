@@ -72,7 +72,7 @@ class DataLoader:
         self.transformation_rgb = transforms.Compose([
             #transforms.ColorJitter(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+                                 std=[0.229, 0.224, 0.225]),
             #random_transforms
             #transforms.Grayscale(num_output_channels=3)
         ])
@@ -206,7 +206,7 @@ class DataLoader:
         """
         rgb = rgb / 255.0
         rgb = torch.moveaxis(rgb, -1, 0)
-        rgb = self.transformation_rgb(rgb)
+        #rgb = self.transformation_rgb(rgb)
         if include_depth:
             # Input channels -- (red, green, blue, depth)
             d = torch.unsqueeze(d, 2)
