@@ -13,12 +13,7 @@ from evaluation import visualize_cls, denormalize_img
 from transformers import CLIPProcessor, CLIPModel
 
 params = Params()
-#LABELS = ["Chair", "Lamp", "Plastic figure", "Plants", "Pen"]
-LABELS = ["Bed", "Bottle", "Can", "Cellphone", "Chair", "Clothes Hanger",
-          "Computer Monitor", "Cup", "Figurines", "Fish", "Fork", "Guitar",
-          "Gun", "Insect", "Knife", "Lamp", "Laptop", "Pen", "Photo Frame",
-          "Plants", "Sofa", "Stool", "Sword", "Table", "Toy Car", "Plane",
-          "USB", "Vase", "Violin", "Ipod"]
+LABELS = ["Chair", "Lamp", "Figurine", "Plants", "Pen"]
 
 model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
 model.to(params.DEVICE)
@@ -30,7 +25,7 @@ data_loader = DataLoader(params.TRAIN_PATH,
                         include_depth=False,
                         verbose=False,
                         seed=42,
-                        device="cpu")
+                        device=params.DEVICE)
 
 i = 0
 total = data_loader.n_data
@@ -52,9 +47,9 @@ for (img, cls_map, label) in pbar:
     i += 1
 
     if (i % 50 == 0):
-        accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=30)
+        accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=5)
         acc = accuracy(torch.tensor(pred_ls), torch.tensor(gt_ls))
-        confmat = torchmetrics.ConfusionMatrix(task="multiclass", num_classes=30, normalize='true')
+        confmat = torchmetrics.ConfusionMatrix(task="multiclass", num_classes=5, normalize='true')
         mat = confmat(torch.tensor(pred_ls), torch.tensor(gt_ls))
 
         plt.matshow(mat)
@@ -63,12 +58,11 @@ for (img, cls_map, label) in pbar:
         plt.ylabel('True Label')
         plt.xlabel('Predicated Label')
         plt.savefig('confusion_matrix.jpg')
-        plt.close()
         pbar.set_description("Acc: %s" % acc)
     
 
-    print(LABELS[torch.argmax(probs)], LABELS[label])
+    """print(LABELS[torch.argmax(probs)], LABELS[label])
     img_bgr = denormalize_img(img)
     img_vis = np.ascontiguousarray(img_bgr, dtype=np.uint8)
-    cv2.imwrite('vis.png', img_vis)
-    input('waiting...')
+    cv2.imshow('vis', img_vis)
+    cv2.waitKey(0)"""
