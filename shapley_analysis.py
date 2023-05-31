@@ -209,4 +209,5 @@ if __name__ == '__main__':
             results = get_results_list(run_dir)
 
             plot_shapley_dist(players, results, model_type, layer)
+
             plot_shapley_conf_trend(players, results, model_type, layer)
